@@ -5,3 +5,4 @@ node_modules/
 *.log
 node_modules/
 screenshots/_vid/
+screenshots/vid/

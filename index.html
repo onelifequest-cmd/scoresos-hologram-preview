@@ -2,329 +2,180 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Score OS — Hologram homepage (PREVIEW)</title>
-  <meta name="description" content="Preview only. Interactive 3D hologram homepage concept for Score OS. Not the live scoresos.com homepage." />
-  <meta name="robots" content="noindex, nofollow" />
-  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex, nofollow, noarchive" />
+  <meta name="description" content="Preview only. The Wave — cinematic Score OS hologram concept. Not the live scoresos.com homepage." />
+  <title>Score OS — The Wave (Preview Only)</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="modulepreload" href="vendor/three.module.min.js" />
-  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three.module.min.js",
+      "three/addons/": "./vendor/"
+    }
+  }
+  </script>
 </head>
 <body>
-  <div class="preview-ribbon" role="status">Preview only · not live scoresos.com · demo data</div>
+  <div class="preview-ribbon" role="status">Preview only · not live scoresos.com · demo / illustrative data · CROA-safe</div>
 
-  <div id="heroStage" class="hero-stage" aria-hidden="false">
-    <canvas id="holoCanvas" class="holo-canvas" aria-hidden="true"></canvas>
-    <div id="videoFallback" class="video-fallback" hidden>
-      <img class="hero-poster" id="heroPoster" src="media/hero-poster.jpg" alt="" width="1280" height="720" decoding="async" />
-      <!-- Video sources injected only when fallback is needed (keeps first load light). -->
-    </div>
-    <div class="hero-veil" aria-hidden="true"></div>
+  <div id="wave-root" aria-hidden="true">
+    <canvas id="wave-canvas"></canvas>
+    <video id="cinematic" class="cinematic" muted playsinline preload="auto" poster="./media/wave-poster.jpg">
+      <source src="./media/wave-intro.webm" type="video/webm" />
+      <source src="./media/wave-intro.mp4" type="video/mp4" />
+    </video>
+    <div class="vignette"></div>
+    <div class="grain"></div>
   </div>
 
-  <header class="topbar">
-    <a class="brand" href="https://scoresos.com/" aria-label="Score OS home">
-      <img src="media/logo.png" width="40" height="40" alt="" />
-      <span class="brand-name">Score <span>OS</span></span>
+  <header class="site-header">
+    <a class="brand" href="https://scoresos.com/" aria-label="Score OS">
+      <img src="./media/logo.png" width="36" height="36" alt="" />
+      <span>Score OS</span>
     </a>
-    <button class="menu-btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="primaryNav" aria-label="Open menu">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke-linecap="round"/></svg>
-    </button>
-    <nav class="nav" id="primaryNav" aria-label="Primary">
-      <a href="https://scoresos.com/login">Login</a>
+    <nav class="nav">
+      <a href="#arsenal">Arsenal</a>
+      <a href="#funding">Funding</a>
       <a href="#pricing">Pricing</a>
-      <a href="#arsenal">The Arsenal</a>
-      <a href="https://scoresos.com/diy">DIY OS</a>
+      <a href="https://scoresos.com/login">Login</a>
+      <a class="nav-cta" href="https://checkout.square.site/merchant/MLGEBVXJC0JRS/checkout/6A2Q2LWRQHPQDXV3LPI3BSBZ">Get Started</a>
     </nav>
   </header>
 
   <main>
-    <section class="hero" id="hero" aria-label="Score OS hologram hero">
-      <div class="hero-copy reveal">
-        <p class="eyebrow"><span class="pulse-dot" aria-hidden="true"></span> The operating system for credit repair agencies</p>
-        <h1>The most powerful<br /><em>Credit Repair CRM</em><br />you'll ever experience.</h1>
-        <p class="hero-sub">Everything a credit repair agency needs to launch, run, and scale — in one platform. Stop duct-taping ten different subscriptions together. Score OS runs your entire operation, all under your brand.</p>
-        <div class="ctas">
+    <section class="hero" id="hero">
+      <div class="hero-inner">
+        <p class="eyebrow reveal-hero">THE OPERATING SYSTEM FOR CREDIT REPAIR AGENCIES</p>
+        <h1 class="headline reveal-hero">The most powerful Credit Repair CRM<br />you'll ever experience.</h1>
+        <p class="subhead reveal-hero">Everything a credit repair agency needs to launch, run, and scale — in one platform. Stop duct-taping ten different subscriptions together.</p>
+        <div class="hero-cta reveal-hero">
           <a class="btn gold" href="https://checkout.square.site/merchant/MLGEBVXJC0JRS/checkout/6A2Q2LWRQHPQDXV3LPI3BSBZ">Get Started — $199/mo</a>
           <a class="btn ghost" href="https://scoresos.com/diy">DIY for $49.99/mo</a>
         </div>
-        <p class="hero-hint">Move your cursor · drag charts to rotate · sample scores only</p>
+        <p class="demo-note reveal-hero">Illustrative hologram · sample numbers only · Score OS does not guarantee scores, deletions, approvals, or funding outcomes</p>
       </div>
-
-      <div class="chart-hud" id="chartHud" aria-hidden="true">
-        <div class="chart-hud-glow"></div>
-        <p class="chart-hud-kicker">Illustrative scoreboard</p>
-        <div class="bureau-row">
-          <div class="bureau">
-            <span class="bureau-name">Equifax</span>
-            <span class="bureau-score" data-bureau="eq">642</span>
-            <span class="bureau-delta" data-delta="eq">+0</span>
-          </div>
-          <div class="bureau">
-            <span class="bureau-name">Experian</span>
-            <span class="bureau-score" data-bureau="ex">658</span>
-            <span class="bureau-delta" data-delta="ex">+0</span>
-          </div>
-          <div class="bureau">
-            <span class="bureau-name">TransUnion</span>
-            <span class="bureau-score" data-bureau="tu">631</span>
-            <span class="bureau-delta" data-delta="tu">+0</span>
-          </div>
-        </div>
-        <div class="fund-signals" aria-hidden="true">
-          <span class="fund-chip">Sample · opportunity signal</span>
-          <span class="fund-chip gold">Sample · capital growth</span>
-        </div>
-        <p class="chart-hud-note">Demo charts · not live bureau data · results never guaranteed</p>
-      </div>
-
-      <a class="scroll-cue reveal" href="#arsenal" aria-label="Scroll to The Arsenal">
-        <span>See the Arsenal</span>
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </a>
+      <div class="scroll-hint" aria-hidden="true"><span>Ride the wave</span></div>
     </section>
 
-    <section class="section flow" id="arsenal" aria-labelledby="arsenalTitle">
-      <div class="section-inner">
-        <p class="section-kicker reveal">The Arsenal</p>
-        <h2 id="arsenalTitle" class="reveal">Everything you need to scale, in one playbook.</h2>
-        <p class="section-lead reveal">Every tool from the live scoresos.com Arsenal — exact names and wording. Frosted cards float in as you scroll. Sample hologram numbers are illustrative only. Score OS never guarantees a score, deletion, approval, or funding outcome.</p>
-
-        <div class="card-grid" id="cardGrid">
-          <article class="glass-card reveal" data-step="1">
-            <div class="card-icon" aria-hidden="true">
-              <svg viewBox="0 0 48 48" width="40" height="40"><circle cx="24" cy="24" r="18" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".4"/><path d="M14 28c4-8 16-8 20 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="24" cy="22" r="3" fill="currentColor"/></svg>
-            </div>
-            <p class="card-step">01 · Arsenal</p>
-            <h3>Credit Monitoring</h3>
-            <p>Real-time 3-bureau credit monitoring built in, so you and your clients always know the score.</p>
-          </article>
-
-          <article class="glass-card reveal" data-step="2">
-            <div class="card-icon gold" aria-hidden="true">
-              <svg viewBox="0 0 48 48" width="40" height="40"><rect x="8" y="12" width="32" height="24" rx="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 20h32M16 28h8M16 32h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-            </div>
-            <p class="card-step">02 · Arsenal</p>
-            <h3>Agency CRM</h3>
-            <p>Manage leads, clients, documents, and notes in one command center built for high-volume agencies.</p>
-          </article>
-
-          <article class="glass-card reveal" data-step="3">
-            <div class="card-icon" aria-hidden="true">
-              <svg viewBox="0 0 48 48" width="40" height="40"><path d="M12 34V18l12-8 12 8v16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M20 34v-8h8v8" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
-            </div>
-            <p class="card-step">03 · Arsenal</p>
-            <h3>Marketing</h3>
-            <p>Built-in marketing tools to capture leads and turn them into signed, paying clients.</p>
-          </article>
-
-          <article class="glass-card reveal" data-step="4">
-            <div class="card-icon gold" aria-hidden="true">
-              <svg viewBox="0 0 48 48" width="40" height="40"><rect x="10" y="14" width="28" height="22" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10 20h28M18 14v-2h12v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-            </div>
-            <p class="card-step">04 · Arsenal</p>
-            <h3>Free Website</h3>
-            <p>A professional, conversion-ready website included free — your agency online and taking leads in minutes.</p>
-          </article>
-
-          <article class="glass-card reveal" data-step="5">
-            <div class="card-icon" aria-hidden="true">
-              <svg viewBox="0 0 48 48" width="40" height="40"><path d="M10 34l8-10 6 5 14-16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M30 13h8v8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </div>
-            <p class="card-step">05 · Arsenal</p>
-            <h3>3-Bureau Tracking</h3>
-            <p>Track disputes across Equifax, Experian, and TransUnion on one live scoreboard — no more spreadsheets.</p>
-          </article>
-
-          <article class="glass-card reveal" data-step="6">
-            <div class="card-icon gold" aria-hidden="true">
-              <svg viewBox="0 0 48 48" width="40" height="40"><circle cx="24" cy="24" r="18" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".4"/><path d="M16 26c2-6 14-6 16 0" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="20" r="1.6" fill="currentColor"/><circle cx="30" cy="20" r="1.6" fill="currentColor"/><path d="M22 30h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-            </div>
-            <p class="card-step">06 · Arsenal · Maxine</p>
-            <h3>AI Dispute Engine</h3>
-            <p>Maxine reads each credit report and drafts unique, non-templated letters. You review every letter before it goes out. Outcomes are never guaranteed.</p>
-          </article>
-
-          <article class="glass-card reveal" data-step="7">
-            <div class="card-icon" aria-hidden="true">
-              <svg viewBox="0 0 48 48" width="40" height="40"><rect x="12" y="10" width="24" height="28" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M18 18h12M18 24h12M18 30h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-            </div>
-            <p class="card-step">07 · Arsenal</p>
-            <h3>White-Label Portal</h3>
-            <p>Your logo, your colors, your brand. Clients log into a premium portal that looks like you built it yourself.</p>
-          </article>
-
-          <article class="glass-card reveal" data-step="8">
-            <div class="card-icon gold" aria-hidden="true">
-              <svg viewBox="0 0 48 48" width="40" height="40"><path d="M12 30l8-8 6 5 10-10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 16h8v8M34 20v12H18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity=".7"/></svg>
-            </div>
-            <p class="card-step">08 · Arsenal</p>
-            <h3>2-Way Messaging</h3>
-            <p>Secure two-way chat keeps every client conversation inside the platform, off your personal phone.</p>
-          </article>
-
-          <article class="glass-card reveal" data-step="9">
-            <div class="card-icon" aria-hidden="true">
-              <svg viewBox="0 0 48 48" width="40" height="40"><rect x="10" y="12" width="28" height="26" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10 20h28M18 12v4M30 12v4M18 28h4M26 28h4M18 34h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-            </div>
-            <p class="card-step">09 · Arsenal</p>
-            <h3>Booking Calendar</h3>
-            <p>Let clients book consultations around the clock with a built-in scheduling calendar.</p>
-          </article>
-
-          <article class="glass-card reveal" data-step="10">
-            <div class="card-icon gold" aria-hidden="true">
-              <svg viewBox="0 0 48 48" width="40" height="40"><circle cx="24" cy="18" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 36c2-6 10-8 12-8s10 2 12 8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-            </div>
-            <p class="card-step">10 · Arsenal</p>
-            <h3>Mentorship</h3>
-            <p>Learn from operators who've scaled — ongoing mentorship to help you grow your agency faster.</p>
-          </article>
-
-          <article class="glass-card reveal" data-step="11">
-            <div class="card-icon" aria-hidden="true">
-              <svg viewBox="0 0 48 48" width="40" height="40"><circle cx="16" cy="20" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="32" cy="20" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="24" cy="30" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M20 22l4 6M28 22l-4 6" stroke="currentColor" stroke-width="1.4" opacity=".6"/></svg>
-            </div>
-            <p class="card-step">11 · Arsenal</p>
-            <h3>Community</h3>
-            <p>Join a private community of credit repair owners leveling up and sharing wins together.</p>
-          </article>
-
-          <article class="glass-card reveal" data-step="12">
-            <div class="card-icon gold" aria-hidden="true">
-              <svg viewBox="0 0 48 48" width="40" height="40"><rect x="12" y="14" width="24" height="20" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M20 34h8M22 22l5 3-5 3v-6z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
-            </div>
-            <p class="card-step">12 · Arsenal</p>
-            <h3>Training Videos</h3>
-            <p>A full library of training videos to onboard fast and master every play in the platform.</p>
-          </article>
-
-          <article class="glass-card reveal" data-step="13">
-            <div class="card-icon" aria-hidden="true">
-              <svg viewBox="0 0 48 48" width="40" height="40"><circle cx="24" cy="24" r="16" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M24 16v10l6 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </div>
-            <p class="card-step">13 · Arsenal</p>
-            <h3>Support System</h3>
-            <p>A built-in support system so you're never stuck — real help exactly when you need it.</p>
-          </article>
-
-          <article class="glass-card reveal" data-step="14">
-            <div class="card-icon gold" aria-hidden="true">
-              <svg viewBox="0 0 48 48" width="40" height="40"><path d="M12 30h6v6h-6zM21 24h6v12h-6zM30 16h6v20h-6z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 18l10-6 8 4 6-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </div>
-            <p class="card-step">14 · Arsenal</p>
-            <h3>Tons of Automations</h3>
-            <p>Smart automations handle the busywork — follow-ups, progress updates, and reminders on autopilot.</p>
-          </article>
-        </div>
+    <section class="arsenal" id="arsenal">
+      <div class="section-head">
+        <p class="kicker">THE ARSENAL</p>
+        <h2>Everything you need to scale, in one playbook.</h2>
+        <p class="lead">Every tool you need to run offense, defense, and special teams — no duct-taped subscriptions. Panels rise from the wave as you scroll. Numbers are illustrative.</p>
       </div>
+      <div class="panel-grid" id="panel-grid">
+        <!-- filled by app.js from FEATURES -->
+      </div>
+      <svg class="energy-lines" id="energy-lines" aria-hidden="true"></svg>
+    </section>
 
-      <div class="scroll-holo" id="scrollHolo" aria-hidden="true">
-        <div class="scroll-bars">
-          <i style="--h:40%"></i><i style="--h:58%"></i><i style="--h:72%"></i><i style="--h:88%"></i>
-        </div>
-        <div class="scroll-holo-core" id="scrollHoloCore"></div>
+    <section class="funding" id="funding">
+      <div class="section-head">
+        <p class="kicker">CAPITAL PATH</p>
+        <h2>Built for the road to funding.</h2>
+        <p class="lead">A skyline of capital opportunity — prepared agencies, organized books, and the operating system that keeps the work moving. No promises of approval, rates, or outcomes. Illustrative only.</p>
+      </div>
+      <div class="skyline" id="skyline" aria-label="Illustrative capital skyline">
+        <div class="sky-col" style="--h:42%"><span>Prep</span></div>
+        <div class="sky-col" style="--h:58%"><span>Ops</span></div>
+        <div class="sky-col" style="--h:74%"><span>Scale</span></div>
+        <div class="sky-col gold" style="--h:92%"><span>Capital</span></div>
+        <div class="sky-col" style="--h:66%"><span>Growth</span></div>
+        <div class="sky-col" style="--h:80%"><span>Reach</span></div>
+      </div>
+      <p class="demo-note center">Demo visualization · not a funding offer · not Score Capital · CROA-safe</p>
+    </section>
+
+    <section class="diy" id="diy">
+      <div class="section-head">
+        <p class="kicker">DIY OS</p>
+        <h2>Repair your credit. Own your future.</h2>
+        <p class="lead">The same AI tools the pros use — no agency needed. $49.99/mo.</p>
+      </div>
+      <div class="diy-grid">
+        <article class="glass-panel"><h3>Maxine AI Auditor</h3><p>Our AI scans your credit report line by line, finding every error, inconsistency, and violation to attack.</p></article>
+        <article class="glass-panel"><h3>Unlimited Disputes</h3><p>Generate custom, non-templated dispute letters that challenge auto-rejection systems.</p></article>
+        <article class="glass-panel"><h3>Live 3-Bureau Tracking</h3><p>Watch Equifax, Experian, and TransUnion on one dashboard. Sample UI only.</p></article>
+        <article class="glass-panel"><h3>Secure Portal</h3><p>Upload ID, proof of address, and documents to your encrypted personal vault.</p></article>
       </div>
     </section>
 
-    <section class="section brand-band" aria-labelledby="brandTitle">
-      <div class="section-inner">
-        <p class="section-kicker reveal">Client experience</p>
-        <h2 id="brandTitle" class="reveal">Your Brand. Not Ours.</h2>
-        <p class="section-lead reveal">When your clients log in to check their scores or read messages, they see your logo, your colors, and your agency's name. You own the relationship; we just power it.</p>
-        <div class="card-grid diy-grid">
-          <article class="glass-card reveal">
-            <p class="card-step">DIY OS · Toolkit</p>
-            <h3>Maxine AI Auditor</h3>
-            <p>Our AI scans your credit report line by line, finding every error, inconsistency, and violation to attack.</p>
-          </article>
-          <article class="glass-card reveal">
-            <p class="card-step">DIY OS · Toolkit</p>
-            <h3>Unlimited Disputes</h3>
-            <p>Generate custom, non-templated dispute letters designed for each profile — not generic downloads.</p>
-          </article>
-          <article class="glass-card reveal">
-            <p class="card-step">DIY OS · Toolkit</p>
-            <h3>Live 3-Bureau Tracking</h3>
-            <p>Watch your Equifax, Experian, and TransUnion scores update in real time on one beautiful dashboard.</p>
-          </article>
-          <article class="glass-card reveal">
-            <p class="card-step">DIY OS · Toolkit</p>
-            <h3>Secure Portal</h3>
-            <p>Upload your ID, proof of address, and documents directly to your encrypted personal vault.</p>
-          </article>
-        </div>
+    <section class="finale" id="finale">
+      <div class="finale-core" id="finale-core">
+        <img src="./media/logo.png" alt="" width="72" height="72" />
+        <h2 class="gold-burn">Score OS</h2>
+        <p>One glowing core. Every tool. One brand.</p>
       </div>
     </section>
 
-    <section class="section pricing" id="pricing" aria-labelledby="pricingTitle">
-      <div class="section-inner">
-        <p class="section-kicker reveal">Simple pricing. Infinite scale.</p>
-        <h2 id="pricingTitle" class="reveal">No hidden fees. No per-client charges.</h2>
-        <p class="section-lead reveal">Run an agency — or repair your own credit. Cancel anytime. No long-term contracts.</p>
-
-        <div class="price-grid">
-          <article class="glass-card price reveal">
-            <p class="price-tag">Agency OS</p>
-            <p class="price-amt">$199<span>/mo</span></p>
-            <ul>
-              <li>Unlimited Active Clients</li>
-              <li>Unlimited AI Dispute Letters (Maxine)</li>
-              <li>All 3 Bureaus Tracked</li>
-              <li>Fully White-Labeled Client Portal</li>
-              <li>Built-in Client Messaging</li>
-              <li>Automated Monthly Progress Reports</li>
-            </ul>
-            <a class="btn gold block" href="https://checkout.square.site/merchant/MLGEBVXJC0JRS/checkout/6A2Q2LWRQHPQDXV3LPI3BSBZ">Subscribe Now — $199/mo</a>
-          </article>
-          <article class="glass-card price reveal">
-            <p class="price-tag">DIY OS</p>
-            <p class="price-amt">$49.99<span>/mo</span></p>
-            <ul>
-              <li>Your Own Secure Credit Portal</li>
-              <li>AI Credit Audit &amp; Action Plan</li>
-              <li>Unlimited AI Dispute Letters (Maxine)</li>
-              <li>All 3 Bureaus Tracked</li>
-              <li>Secure ID &amp; Document Uploads</li>
-              <li>Score Progress Tracking</li>
-            </ul>
-            <a class="btn ghost block" href="https://checkout.square.site/merchant/MLGEBVXJC0JRS/checkout/VROSXIVQX2GK6ISB4BMCE237">Start DIY — $49.99/mo</a>
-          </article>
-        </div>
-        <p class="already reveal">Already paid? <a href="https://scoresos.com/login">Sign up with your access code</a></p>
+    <section class="pricing" id="pricing">
+      <div class="section-head">
+        <p class="kicker">PRICING</p>
+        <h2>Simple pricing. Infinite scale.</h2>
+        <p class="lead">No hidden fees, no per-client charges. Run an agency — or repair your own credit.</p>
       </div>
+      <div class="price-grid">
+        <article class="price-card featured glass-panel">
+          <p class="plan">Agency OS</p>
+          <p class="price-amt">$199<span>/mo</span></p>
+          <p class="fine">Cancel anytime. No long-term contracts.</p>
+          <ul>
+            <li>Unlimited Active Clients</li>
+            <li>Unlimited AI Dispute Letters (Maxine)</li>
+            <li>All 3 Bureaus Tracked</li>
+            <li>Fully White-Labeled Client Portal</li>
+            <li>Built-in Client Messaging</li>
+            <li>Automated Monthly Progress Reports</li>
+          </ul>
+          <a class="btn gold block" href="https://checkout.square.site/merchant/MLGEBVXJC0JRS/checkout/6A2Q2LWRQHPQDXV3LPI3BSBZ">Subscribe Now — $199/mo</a>
+        </article>
+        <article class="price-card glass-panel">
+          <p class="plan">DIY OS</p>
+          <p class="price-amt">$49.99<span>/mo</span></p>
+          <p class="fine">For individuals — no agency needed.</p>
+          <ul>
+            <li>Your Own Secure Credit Portal</li>
+            <li>AI Credit Audit &amp; Action Plan</li>
+            <li>Unlimited AI Dispute Letters (Maxine)</li>
+            <li>All 3 Bureaus Tracked</li>
+            <li>Secure ID &amp; Document Uploads</li>
+            <li>Score Progress Tracking</li>
+          </ul>
+          <a class="btn ghost block" href="https://checkout.square.site/merchant/MLGEBVXJC0JRS/checkout/VROSXIVQX2GK6ISB4BMCE237">Start DIY — $49.99/mo</a>
+        </article>
+      </div>
+      <p class="already">Already paid? <a href="https://scoresos.com/login">Sign up with your access code</a></p>
     </section>
 
-    <section class="section cta-band" aria-labelledby="ctaTitle">
-      <div class="section-inner reveal">
-        <h2 id="ctaTitle">Ready to build a championship agency?</h2>
-        <p>One platform for CRM, AI letters, 3-bureau tracking, a white-label portal, marketing, and more — starting at $199/mo. Not running an agency? DIY OS puts the same AI tools in your hands.</p>
-        <div class="ctas">
-          <a class="btn gold" href="https://checkout.square.site/merchant/MLGEBVXJC0JRS/checkout/6A2Q2LWRQHPQDXV3LPI3BSBZ">Get Started</a>
-          <a class="btn ghost" href="https://scoresos.com/diy">DIY for $49.99/mo</a>
-        </div>
-        <p class="disc">No one can legally guarantee credit repair results. Score OS gives you the tools to dispute inaccurate, unverifiable or outdated items and track every round. Sample hologram scores and funding signals are illustrative only.</p>
+    <section class="cta-band">
+      <h2>Ready to build a championship agency?</h2>
+      <p>One platform for CRM, AI letters, 3-bureau tracking, a white-label portal, marketing, and more.</p>
+      <div class="hero-cta">
+        <a class="btn gold lg" href="https://checkout.square.site/merchant/MLGEBVXJC0JRS/checkout/6A2Q2LWRQHPQDXV3LPI3BSBZ">Get Started</a>
+        <a class="btn ghost lg" href="https://scoresos.com/diy">DIY for $49.99/mo</a>
       </div>
     </section>
   </main>
 
-  <footer class="footer">
-    <div class="section-inner footer-inner">
-      <p><strong>Score OS</strong> · Hologram homepage concept · Preview only</p>
-      <p class="footer-note">Does not collect emails, passwords or personal data. Live site stays at scoresos.com until Patrick approves a ship. Contact: admin@scoresos.com · (302) 273-0607 · 1309 Coffeen Avenue STE 1200, Sheridan, WY 82801</p>
-      <nav class="footer-nav" aria-label="Footer">
-        <a href="https://scoresos.com/login">Login</a>
-        <a href="#pricing">Pricing</a>
-        <a href="#arsenal">The Arsenal</a>
-        <a href="https://scoresos.com/privacy">Privacy</a>
-        <a href="https://scoresos.com/terms">Terms</a>
-      </nav>
+  <footer class="site-footer">
+    <p class="legal">Educational / informational only. Not legal advice. Score OS does not guarantee any credit score, deletion, approval, or funding outcome. Users must comply with applicable law including CROA.</p>
+    <p class="footer-note">Does not collect emails, passwords or personal data. Live site stays at scoresos.com until Patrick approves a ship. Contact: admin@scoresos.com · (302) 273-0607 · 1309 Coffeen Avenue STE 1200, Sheridan, WY 82801</p>
+    <div class="footer-links">
+      <a href="https://scoresos.com/login">Login</a>
+      <a href="https://scoresos.com/diy">DIY OS</a>
+      <a href="https://scoresos.com/privacy">Privacy</a>
+      <a href="https://scoresos.com/terms">Terms</a>
     </div>
   </footer>
 
-  <script type="module" src="app.js"></script>
+  <script src="./vendor/gsap.min.js"></script>
+  <script src="./vendor/ScrollTrigger.min.js"></script>
+  <script src="./vendor/lenis.min.js"></script>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>

@@ -1,479 +1,563 @@
 /**
- * Score OS hologram preview
- * Three.js particle rising credit-score charts + funding columns
- * Cursor parallax / drag-to-rotate / gyro or auto-motion fallback
- * Mobile / low-power / reduced-motion → looping hero video
+ * Score OS — The Wave
+ * GPU particle tsunami + bloom + Runway cinematic handoff + GSAP/Lenis scroll
+ * Preview only. Illustrative / CROA-safe.
  */
-import * as THREE from './vendor/three.module.min.js';
+import * as THREE from 'three';
+import { EffectComposer } from './vendor/postprocessing/EffectComposer.js';
+import { RenderPass } from './vendor/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from './vendor/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from './vendor/postprocessing/OutputPass.js';
 
-(function () {
-  'use strict';
+const FEATURES = [
+  { name: 'Credit Monitoring', desc: 'Real-time 3-bureau credit monitoring built in, so you and your clients always know the score.', num: 3, suffix: ' bureaus' },
+  { name: 'Agency CRM', desc: 'Manage leads, clients, documents, and notes in one command center built for high-volume agencies.', num: 1, suffix: ' command center' },
+  { name: 'Marketing', desc: 'Built-in marketing tools to capture leads and turn them into signed, paying clients.', num: 24, suffix: ' automations*' },
+  { name: 'Free Website', desc: 'A professional, conversion-ready website included free — your agency online and taking leads in minutes.', num: 1, suffix: ' site included' },
+  { name: '3-Bureau Tracking', desc: 'Track disputes across Equifax, Experian, and TransUnion on one live scoreboard — no more spreadsheets.', num: 3, suffix: ' bureaus live' },
+  { name: 'AI Dispute Engine', desc: 'Maxine reads each credit report and drafts unique, non-templated letters the bureaus can\'t auto-reject.', num: 1, suffix: ' Maxine AI' },
+  { name: 'White-Label Portal', desc: 'Your logo, your colors, your brand. Clients log into a premium portal that looks like you built it yourself.', num: 100, suffix: '% your brand' },
+  { name: '2-Way Messaging', desc: 'Secure two-way chat keeps every client conversation inside the platform, off your personal phone.', num: 2, suffix: '-way chat' },
+  { name: 'Booking Calendar', desc: 'Let clients book consultations around the clock with a built-in scheduling calendar.', num: 24, suffix: '/7 booking' },
+  { name: 'Mentorship', desc: 'Learn from operators who\'ve scaled — ongoing mentorship to help you grow your agency faster.', num: 1, suffix: ' mentorship path' },
+  { name: 'Community', desc: 'Join a private community of credit repair owners leveling up and sharing wins together.', num: 1, suffix: ' private community' },
+  { name: 'Training Videos', desc: 'A full library of training videos to onboard fast and master every play in the platform.', num: 50, suffix: '+ lessons*' },
+  { name: 'Support System', desc: 'A built-in support system so you\'re never stuck — real help exactly when you need it.', num: 1, suffix: ' support system' },
+  { name: 'Tons of Automations', desc: 'Smart automations handle the busywork — follow-ups, progress updates, and reminders on autopilot.', num: 40, suffix: '+ flows*' },
+];
 
-  const GOLD = new THREE.Color(0xf4d96b);
-  const GREEN = new THREE.Color(0x1a6b3c);
-  const MINT = new THREE.Color(0x8fd9a8);
-  const DEEP = 0x050a07;
+const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 720;
+const COUNT = reduced ? 800 : (isMobile ? 14000 : 52000);
 
-  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const coarse = matchMedia('(pointer: coarse)').matches;
-  const narrow = matchMedia('(max-width: 760px)').matches;
-  const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-  const saveData = !!(conn && conn.saveData);
-  const lowMem = navigator.deviceMemory && navigator.deviceMemory <= 4;
-  const prefersVideo = reduceMotion || saveData || (coarse && narrow) || lowMem ||
-    /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) && matchMedia('(max-width: 900px)').matches;
+/* ---------- UI panels ---------- */
+const grid = document.getElementById('panel-grid');
+FEATURES.forEach((f, i) => {
+  const el = document.createElement('article');
+  el.className = 'glass-panel';
+  el.dataset.idx = String(i);
+  el.innerHTML = `
+    <p class="panel-num" data-target="${f.num}">0${f.suffix}</p>
+    <h3>${f.name}</h3>
+    <p>${f.desc}</p>
+    <span class="tag">Illustrative</span>`;
+  grid.appendChild(el);
+});
 
-  if (reduceMotion) document.body.classList.add('reduce-fx');
+/* ---------- Three.js wave ---------- */
+const canvas = document.getElementById('wave-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !isMobile, alpha: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-  /* ---------- Mobile menu ---------- */
-  const menuBtn = document.getElementById('menuBtn');
-  const nav = document.getElementById('primaryNav');
-  if (menuBtn && nav) {
-    menuBtn.addEventListener('click', () => {
-      const open = nav.classList.toggle('open');
-      menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-      menuBtn.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
-    });
-    nav.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => {
-      nav.classList.remove('open');
-      menuBtn.setAttribute('aria-expanded', 'false');
-      menuBtn.setAttribute('aria-label', 'Open menu');
-    }));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 2.2, 14);
+
+const mouse = new THREE.Vector2(0, 0);
+const mouseSmooth = new THREE.Vector2(0, 0);
+let pointerActive = false;
+
+const uniforms = {
+  uTime: { value: 0 },
+  uPhase: { value: 0 },       // 0 spark → 1 rise → 2 crash → 3 morph → 4 calm
+  uAmp: { value: 0 },
+  uMouse: { value: new THREE.Vector2(0, 0) },
+  uMouseForce: { value: 0 },
+  uPixelRatio: { value: renderer.getPixelRatio() },
+  uSize: { value: isMobile ? 28 : 36 },
+  uCrash: { value: 0 },
+};
+
+const vertexShader = /* glsl */`
+uniform float uTime;
+uniform float uPhase;
+uniform float uAmp;
+uniform vec2 uMouse;
+uniform float uMouseForce;
+uniform float uPixelRatio;
+uniform float uSize;
+uniform float uCrash;
+attribute float aSeed;
+attribute float aKind; // 0 wave body, 1 crest foam, 2 spark core
+attribute vec3 aMorph; // morph target (letters / pillars / core)
+varying float vHeight;
+varying float vSeed;
+varying float vKind;
+varying float vDist;
+
+float hash(float n){ return fract(sin(n)*43758.5453123); }
+
+void main(){
+  vSeed = aSeed;
+  vKind = aKind;
+  vec3 p = position;
+
+  // Gerstner-ish multi-wave field
+  float t = uTime;
+  float x = p.x;
+  float z = p.z;
+
+  float w1 = sin(x * 0.28 + t * 1.4) * cos(z * 0.18 + t * 0.9);
+  float w2 = sin(x * 0.55 - t * 1.1 + z * 0.22) * 0.55;
+  float w3 = cos(x * 0.12 + z * 0.35 + t * 0.7) * 0.35;
+  float crest = exp(-pow((z + 1.5) * 0.22, 2.0)) * 1.4;
+  float waveY = (w1 + w2 + w3) * uAmp * (1.2 + crest);
+
+  // Tsunami curl: lift front, fold over as crash rises
+  float front = smoothstep(-10.0, 6.0, z);
+  waveY += front * uAmp * 1.8 * uCrash;
+  float curl = uCrash * front * sin(x * 0.4 + t) * uAmp * 0.8;
+  p.y = waveY;
+  p.z += curl * 0.6;
+  p.x += curl * 0.25 * sin(aSeed * 6.28);
+
+  // Cursor push / ripple
+  vec2 md = p.xz - uMouse;
+  float d = length(md);
+  float ripple = sin(d * 2.2 - t * 6.0) * exp(-d * 0.55) * uMouseForce * 1.6;
+  p.y += ripple;
+  p.xz += normalize(md + 0.0001) * uMouseForce * exp(-d * 0.8) * 0.55;
+  vDist = d;
+  vHeight = p.y;
+
+  // Spark phase: collapse toward origin with gold core particles
+  float sparkMix = 1.0 - smoothstep(0.0, 0.35, uPhase);
+  vec3 sparkPos = vec3(
+    (hash(aSeed)-0.5) * 0.15,
+    (hash(aSeed+1.3)-0.5) * 0.15,
+    (hash(aSeed+2.1)-0.5) * 0.15
+  );
+  if (aKind > 1.5) {
+    sparkPos *= 0.4;
   }
+  p = mix(sparkPos, p, 1.0 - sparkMix * (aKind < 1.5 ? 1.0 : 0.2));
 
-  /* ---------- Reveal on scroll ---------- */
-  const reveals = document.querySelectorAll('.reveal');
-  if ('IntersectionObserver' in window) {
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
-    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
-    reveals.forEach((el) => io.observe(el));
-  } else {
-    reveals.forEach((el) => el.classList.add('in'));
-  }
+  // Morph phase (letters / skyline / core)
+  float morphT = smoothstep(2.4, 3.2, uPhase);
+  float calmT = smoothstep(3.5, 4.2, uPhase);
+  vec3 morphP = mix(p, aMorph, morphT);
+  // Calming: settle into gentle low wave + drift toward core
+  vec3 core = normalize(aMorph + vec3(0.001)) * (2.0 + hash(aSeed) * 1.5);
+  core.y += 1.0;
+  p = mix(morphP, mix(morphP * 0.3 + core * 0.7, vec3(p.x * 0.4, p.y * 0.25 + 0.4, p.z * 0.4), 0.5), calmT);
 
-  /* ---------- Sample scoreboard HUD (illustrative) ---------- */
-  const baseScores = { eq: 620, ex: 635, tu: 608 };
-  const peakScores = { eq: 745, ex: 752, tu: 729 };
-  function setBureauScores(t) {
-    const clamp = Math.min(1, Math.max(0, t));
-    ['eq', 'ex', 'tu'].forEach((k) => {
-      const v = Math.round(baseScores[k] + (peakScores[k] - baseScores[k]) * clamp);
-      const delta = v - baseScores[k];
-      const el = document.querySelector(`[data-bureau="${k}"]`);
-      const dEl = document.querySelector(`[data-delta="${k}"]`);
-      if (el) el.textContent = String(v);
-      if (dEl) dEl.textContent = (delta >= 0 ? '+' : '') + delta;
-    });
-  }
-  setBureauScores(0);
+  vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  gl_Position = projectionMatrix * mv;
+  float sizeBoost = 1.0 + uCrash * 0.6 + (aKind > 0.5 ? 0.5 : 0.0) + sparkMix * 2.0;
+  gl_PointSize = uSize * uPixelRatio * sizeBoost * (1.2 / -mv.z);
+}
+`;
 
-  /* ---------- Scroll ornament + score climb ---------- */
-  const scrollHolo = document.getElementById('scrollHolo');
-  const scrollHoloCore = document.getElementById('scrollHoloCore');
-  function onScrollFx() {
-    const y = window.scrollY || 0;
-    const max = Math.max(1, document.body.scrollHeight - window.innerHeight);
-    const t = y / max;
-    if (scrollHolo) {
-      scrollHolo.style.transform = `translateY(${t * -60}px)`;
-      scrollHolo.style.opacity = String(0.35 + Math.sin(t * Math.PI) * 0.4);
+const fragmentShader = /* glsl */`
+precision highp float;
+uniform float uPhase;
+uniform float uCrash;
+varying float vHeight;
+varying float vSeed;
+varying float vKind;
+varying float vDist;
+
+void main(){
+  vec2 uv = gl_PointCoord - 0.5;
+  float r = length(uv);
+  if (r > 0.5) discard;
+  float soft = smoothstep(0.5, 0.05, r);
+
+  // Brand palette
+  vec3 deep = vec3(0.055, 0.176, 0.102);
+  vec3 green = vec3(0.102, 0.420, 0.235);
+  vec3 gold = vec3(0.831, 0.686, 0.216);
+  vec3 bright = vec3(0.957, 0.851, 0.420);
+  vec3 mint = vec3(0.910, 0.957, 0.929);
+
+  float h = clamp(vHeight * 0.18 + 0.35, 0.0, 1.0);
+  vec3 col = mix(deep, green, clamp(h * 1.15, 0.0, 1.0));
+  col = mix(col, gold, smoothstep(0.55, 0.95, h) * 0.55);
+  col = mix(col, bright, smoothstep(0.85, 1.3, h) * 0.45 + uCrash * 0.18);
+  // Keep body emerald-dominant so bloom doesn't bleach to white-gold
+  col = mix(col, green, 0.22);
+
+  // Crest foam / spark cores more gold
+  if (vKind > 0.5) col = mix(col, bright, 0.65);
+  if (vKind > 1.5) col = mix(bright, mint, 0.3);
+
+  float spark = 1.0 - smoothstep(0.0, 0.4, uPhase);
+  col = mix(col, bright, spark * (vKind > 1.0 ? 1.0 : 0.2));
+
+  float alpha = soft * (0.55 + h * 0.45);
+  alpha *= 0.85 + 0.15 * sin(vSeed * 40.0);
+  // Slight mouse proximity brighten
+  alpha *= 1.0 + exp(-vDist * 0.6) * 0.35;
+
+  gl_FragColor = vec4(col, alpha);
+}
+`;
+
+function buildParticles() {
+  const pos = new Float32Array(COUNT * 3);
+  const seed = new Float32Array(COUNT);
+  const kind = new Float32Array(COUNT);
+  const morph = new Float32Array(COUNT * 3);
+
+  // Morph targets: dispute-letter rectangles, 3 score pillars, funding skyline, core sphere
+  for (let i = 0; i < COUNT; i++) {
+    const s = Math.random();
+    seed[i] = s;
+    // Spatial distribution: denser near crest band
+    const x = (Math.random() - 0.5) * 28;
+    // Bias toward a crest sheet so the wave reads as a coherent tsunami, not random dots
+    const z = (Math.random() - 0.5) * 18 + (Math.random() < 0.55 ? (Math.random() - 0.5) * 4 : (Math.random() * 6 - 1));
+    const y = 0;
+    pos[i * 3] = x;
+    pos[i * 3 + 1] = y;
+    pos[i * 3 + 2] = z;
+
+    // kind: 5% spark core, 18% crest foam, rest body
+    if (s < 0.05) kind[i] = 2;
+    else if (s < 0.23) kind[i] = 1;
+    else kind[i] = 0;
+
+    // Morph destinations
+    let mx, my, mz;
+    const bucket = s;
+    if (bucket < 0.22) {
+      // Flying dispute letters — flat stacks
+      const li = Math.floor(s * 40) % 8;
+      const lx = (li % 4) * 2.2 - 3.3;
+      const ly = Math.floor(li / 4) * 1.4 + 2.5;
+      mx = lx + (Math.random() - 0.5) * 1.4;
+      my = ly + (Math.random() - 0.5) * 0.9;
+      mz = -2 + (Math.random() - 0.5) * 0.3;
+    } else if (bucket < 0.45) {
+      // Three bureau score pillars
+      const pillar = Math.floor(s * 30) % 3;
+      const px = (pillar - 1) * 3.2;
+      const h = 2 + Math.random() * 5;
+      mx = px + (Math.random() - 0.5) * 0.7;
+      my = Math.random() * h;
+      mz = 2 + (Math.random() - 0.5) * 0.7;
+    } else if (bucket < 0.72) {
+      // Funding skyline columns
+      const col = Math.floor(Math.random() * 7);
+      const cx = (col - 3) * 1.6;
+      const ch = 1.5 + (col === 3 ? 6 : Math.random() * 4.5);
+      mx = cx + (Math.random() - 0.5) * 0.55;
+      my = Math.random() * ch;
+      mz = 5 + (Math.random() - 0.5) * 0.8;
+    } else {
+      // Core sphere
+      const phi = Math.random() * Math.PI * 2;
+      const cost = Math.random() * 2 - 1;
+      const sint = Math.sqrt(1 - cost * cost);
+      const rad = 1.6 + Math.random() * 0.8;
+      mx = Math.cos(phi) * sint * rad;
+      my = cost * rad + 2.2;
+      mz = Math.sin(phi) * sint * rad;
     }
-    if (scrollHoloCore) {
-      scrollHoloCore.style.transform = `scale(${0.85 + t * 0.35})`;
-    }
-    const arsenal = document.getElementById('arsenal');
-    if (arsenal) {
-      const r = arsenal.getBoundingClientRect();
-      const vh = window.innerHeight || 1;
-      if (r.top < vh * 0.92 && r.bottom > 0) {
-        const prog = Math.min(1, Math.max(0, (vh * 0.85 - r.top) / (vh * 0.85 + r.height * 0.35)));
-        setBureauScores(prog);
-      }
-    }
-  }
-  window.addEventListener('scroll', onScrollFx, { passive: true });
-  onScrollFx();
-
-  /* ---------- Video fallback path ---------- */
-  function enableVideoFallback() {
-    document.body.classList.add('use-video');
-    const wrap = document.getElementById('videoFallback');
-    if (!wrap) return;
-    wrap.hidden = false;
-    if (wrap.querySelector('video')) return;
-    const v = document.createElement('video');
-    v.autoplay = true;
-    v.muted = true;
-    v.loop = true;
-    v.playsInline = true;
-    v.setAttribute('playsinline', '');
-    v.preload = 'metadata';
-    v.setAttribute('aria-hidden', 'true');
-    const s1 = document.createElement('source');
-    s1.src = 'media/hero.webm';
-    s1.type = 'video/webm';
-    const s2 = document.createElement('source');
-    s2.src = 'media/hero.mp4';
-    s2.type = 'video/mp4';
-    v.appendChild(s1);
-    v.appendChild(s2);
-    wrap.insertBefore(v, wrap.firstChild);
-    const play = () => { const p = v.play(); if (p && p.catch) p.catch(() => {}); };
-    if (v.readyState >= 2) play();
-    else v.addEventListener('loadeddata', play, { once: true });
-  }
-
-  if (prefersVideo) {
-    enableVideoFallback();
-    return;
-  }
-
-  /* ---------- WebGL rising particle charts ---------- */
-  const canvas = document.getElementById('holoCanvas');
-  if (!canvas) { enableVideoFallback(); return; }
-
-  let renderer;
-  try {
-    renderer = new THREE.WebGLRenderer({
-      canvas,
-      antialias: false,
-      alpha: true,
-      powerPreference: 'high-performance',
-    });
-  } catch (e) {
-    enableVideoFallback();
-    return;
-  }
-  if (!renderer.getContext()) { enableVideoFallback(); return; }
-
-  renderer.setClearColor(DEEP, 0);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
-
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
-  camera.position.set(0.4, 0.55, 7.2);
-
-  const root = new THREE.Group();
-  scene.add(root);
-
-  // Sample climb curves for three bureau lines (normalized 0..1 over x)
-  function sampleLine(kind, x) {
-    // x in [0,1]; returns height 0..1 that climbs
-    const waves = {
-      eq: (t) => 0.18 + 0.72 * Math.pow(t, 0.85) + 0.04 * Math.sin(t * 9),
-      ex: (t) => 0.22 + 0.70 * Math.pow(t, 0.9) + 0.05 * Math.sin(t * 7 + 1),
-      tu: (t) => 0.15 + 0.68 * Math.pow(t, 0.8) + 0.045 * Math.sin(t * 8 + 2),
-    };
-    return Math.min(1, Math.max(0, waves[kind](x)));
-  }
-
-  const LINE_COLORS = { eq: GOLD, ex: MINT, tu: GREEN };
-  const lineKinds = ['eq', 'ex', 'tu'];
-  const PARTICLE_BUDGET = coarse ? 5200 : 9800;
-
-  // Allocate particles across: 3 line charts, bar columns, arrows, ambient mist
-  const linePts = Math.floor(PARTICLE_BUDGET * 0.42);
-  const barPts = Math.floor(PARTICLE_BUDGET * 0.28);
-  const arrowPts = Math.floor(PARTICLE_BUDGET * 0.12);
-  const mistPts = PARTICLE_BUDGET - linePts - barPts - arrowPts;
-
-  const COUNT = PARTICLE_BUDGET;
-  const positions = new Float32Array(COUNT * 3);
-  const colors = new Float32Array(COUNT * 3);
-  const seeds = new Float32Array(COUNT * 4); // role params
-  // seeds: [kind, paramA, paramB, speed] — kind encoded as 0=line,1=bar,2=arrow,3=mist
-
-  let idx = 0;
-  function pushParticle(x, y, z, color, kind, a, b, spd) {
-    positions[idx * 3] = x;
-    positions[idx * 3 + 1] = y;
-    positions[idx * 3 + 2] = z;
-    colors[idx * 3] = color.r;
-    colors[idx * 3 + 1] = color.g;
-    colors[idx * 3 + 2] = color.b;
-    seeds[idx * 4] = kind;
-    seeds[idx * 4 + 1] = a;
-    seeds[idx * 4 + 2] = b;
-    seeds[idx * 4 + 3] = spd;
-    idx++;
-  }
-
-  // --- Rising line charts (3 staggered Z lanes) ---
-  const perLine = Math.floor(linePts / 3);
-  for (let li = 0; li < 3; li++) {
-    const kind = lineKinds[li];
-    const col = LINE_COLORS[kind];
-    const zLane = -0.55 + li * 0.55;
-    for (let i = 0; i < perLine; i++) {
-      const t = i / (perLine - 1);
-      const x = -2.2 + t * 4.4;
-      const h = sampleLine(kind, t) * 2.6 - 0.6;
-      const jitter = (Math.random() - 0.5) * 0.06;
-      const c = col.clone().lerp(GOLD, Math.random() * 0.25);
-      pushParticle(x, h + jitter, zLane + (Math.random() - 0.5) * 0.08, c, 0, t, li, 0.4 + Math.random() * 0.6);
-    }
-  }
-  // fill remainder line budget
-  while (idx < linePts) {
-    const li = idx % 3;
-    const t = Math.random();
-    const kind = lineKinds[li];
-    const x = -2.2 + t * 4.4;
-    const h = sampleLine(kind, t) * 2.6 - 0.6;
-    pushParticle(x, h, -0.55 + li * 0.55, LINE_COLORS[kind], 0, t, li, 0.5);
-  }
-
-  // --- Rising bar / funding columns ---
-  const barCount = coarse ? 7 : 9;
-  const perBar = Math.floor(barPts / barCount);
-  for (let b = 0; b < barCount; b++) {
-    const bx = -2.0 + (b / (barCount - 1)) * 4.0;
-    const targetH = 0.5 + Math.pow((b + 1) / barCount, 1.15) * 2.4;
-    const isGold = b % 3 === 2;
-    const baseCol = isGold ? GOLD : GREEN.clone().lerp(MINT, 0.45);
-    for (let i = 0; i < perBar; i++) {
-      const u = Math.random();
-      const y = -0.7 + u * targetH;
-      const spread = 0.12 + (1 - u) * 0.04;
-      const x = bx + (Math.random() - 0.5) * spread;
-      const z = 1.15 + (Math.random() - 0.5) * 0.35;
-      const c = baseCol.clone().lerp(GOLD, Math.random() * 0.35);
-      pushParticle(x, y, z, c, 1, bx, targetH, 0.35 + Math.random() * 0.8);
-    }
-  }
-  while (idx < linePts + barPts) {
-    pushParticle((Math.random() - 0.5) * 4, Math.random() * 2 - 0.5, 1.1, GOLD, 1, 0, 1.5, 0.5);
-  }
-
-  // --- Upward arrows / approval sparks (particle chevrons) ---
-  const arrowSlots = coarse ? 5 : 7;
-  const perArrow = Math.floor(arrowPts / arrowSlots);
-  for (let a = 0; a < arrowSlots; a++) {
-    const ax = -1.8 + (a / (arrowSlots - 1)) * 3.6;
-    const az = -1.35 + (a % 2) * 0.25;
-    for (let i = 0; i < perArrow; i++) {
-      const u = i / perArrow;
-      // chevron: two diagonals meeting at tip
-      const side = i % 2 === 0 ? -1 : 1;
-      const tipY = 0.2 + u * 2.0;
-      const x = ax + side * (1 - u) * 0.28;
-      const y = tipY;
-      const z = az + (Math.random() - 0.5) * 0.05;
-      const c = GOLD.clone().lerp(MINT, Math.random() * 0.4);
-      pushParticle(x, y, z, c, 2, ax, u, 0.5 + Math.random() * 0.7);
-    }
-  }
-  while (idx < linePts + barPts + arrowPts) {
-    pushParticle((Math.random() - 0.5) * 3, Math.random() * 2, -1.2, GOLD, 2, 0, 0.5, 0.5);
-  }
-
-  // --- Ambient mist ----------
-  while (idx < COUNT) {
-    const x = (Math.random() - 0.5) * 6.5;
-    const y = (Math.random() - 0.5) * 3.5;
-    const z = (Math.random() - 0.5) * 4.5;
-    const c = GREEN.clone().lerp(GOLD, Math.random());
-    pushParticle(x, y, z, c, 3, Math.random() * Math.PI * 2, 0.3 + Math.random() * 1.2, 0.2 + Math.random() * 0.5);
+    morph[i * 3] = mx;
+    morph[i * 3 + 1] = my;
+    morph[i * 3 + 2] = mz;
   }
 
   const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
+  geo.setAttribute('aKind', new THREE.BufferAttribute(kind, 1));
+  geo.setAttribute('aMorph', new THREE.BufferAttribute(morph, 3));
 
-  const mat = new THREE.PointsMaterial({
-    size: coarse ? 0.038 : 0.03,
-    vertexColors: true,
+  const mat = new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader,
+    fragmentShader,
     transparent: true,
-    opacity: 0.92,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
-    sizeAttenuation: true,
   });
-  const points = new THREE.Points(geo, mat);
-  root.add(points);
 
-  // Soft grid floor (particle plane) for hologram stage feel
-  const gridN = coarse ? 180 : 320;
-  const gPos = new Float32Array(gridN * 3);
-  const gCol = new Float32Array(gridN * 3);
-  for (let i = 0; i < gridN; i++) {
-    const gx = (Math.random() - 0.5) * 5.5;
-    const gz = (Math.random() - 0.5) * 4.2;
-    gPos[i * 3] = gx;
-    gPos[i * 3 + 1] = -0.85;
-    gPos[i * 3 + 2] = gz;
-    const c = GOLD.clone().lerp(GREEN, Math.random());
-    gCol[i * 3] = c.r; gCol[i * 3 + 1] = c.g; gCol[i * 3 + 2] = c.b;
+  return new THREE.Points(geo, mat);
+}
+
+const points = buildParticles();
+scene.add(points);
+
+// Soft ambient fill
+scene.add(new THREE.AmbientLight(0x1a6b3c, 0.4));
+const key = new THREE.PointLight(0xf4d96b, 2.5, 40);
+key.position.set(0, 6, 4);
+scene.add(key);
+
+/* Bloom */
+let composer;
+let useComposer = true;
+function buildComposer() {
+  try {
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      isMobile ? 0.42 : 0.62,
+      0.35,
+      0.82
+    );
+    composer.addPass(bloom);
+    composer.addPass(new OutputPass());
+  } catch (e) {
+    console.warn('Bloom composer unavailable, falling back', e);
+    useComposer = false;
   }
-  const gGeo = new THREE.BufferGeometry();
-  gGeo.setAttribute('position', new THREE.BufferAttribute(gPos, 3));
-  gGeo.setAttribute('color', new THREE.BufferAttribute(gCol, 3));
-  const grid = new THREE.Points(gGeo, new THREE.PointsMaterial({
-    size: 0.025, vertexColors: true, transparent: true, opacity: 0.35,
-    depthWrite: false, blending: THREE.AdditiveBlending,
-  }));
-  root.add(grid);
+}
+buildComposer();
 
-  /* Pointer / drag / gyro */
-  const pointer = { x: 0, y: 0, tx: 0, ty: 0 };
-  const drag = { active: false, lx: 0, ly: 0, yaw: 0, pitch: 0, tyaw: 0, tpitch: 0 };
+/* Opening timeline */
+const clock = new THREE.Clock();
+let introDone = false;
+const cinematic = document.getElementById('cinematic');
 
-  function onPointerMove(e) {
-    const w = window.innerWidth || 1;
-    const h = window.innerHeight || 1;
-    const cx = e.clientX != null ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : w / 2);
-    const cy = e.clientY != null ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : h / 2);
-    pointer.tx = (cx / w) * 2 - 1;
-    pointer.ty = (cy / h) * 2 - 1;
-    if (drag.active) {
-      const dx = cx - drag.lx;
-      const dy = cy - drag.ly;
-      drag.tyaw += dx * 0.005;
-      drag.tpitch += dy * 0.003;
-      drag.tpitch = Math.max(-0.55, Math.min(0.55, drag.tpitch));
-      drag.lx = cx; drag.ly = cy;
-    }
-  }
-  function onPointerDown(e) {
-    const cx = e.clientX != null ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
-    const cy = e.clientY != null ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
-    const w = window.innerWidth || 1;
-    if (!coarse && cx < w * 0.32) return;
-    drag.active = true;
-    drag.lx = cx; drag.ly = cy;
-    canvas.style.pointerEvents = 'auto';
-  }
-  function onPointerUp() { drag.active = false; }
-
-  window.addEventListener('pointermove', onPointerMove, { passive: true });
-  window.addEventListener('pointerdown', onPointerDown, { passive: true });
-  window.addEventListener('pointerup', onPointerUp, { passive: true });
-  canvas.style.pointerEvents = 'auto';
-  document.querySelector('.hero-stage').style.pointerEvents = 'auto';
-  document.querySelectorAll('.topbar, .hero-copy, .scroll-cue, .section, .footer, .preview-ribbon, .chart-hud')
-    .forEach((el) => { el.style.pointerEvents = 'auto'; });
-
-  let gyro = null;
-  if (coarse && window.DeviceOrientationEvent) {
-    const applyOri = (e) => {
-      if (e.gamma == null || e.beta == null) return;
-      gyro = {
-        x: Math.max(-1, Math.min(1, e.gamma / 30)),
-        y: Math.max(-1, Math.min(1, (e.beta - 45) / 30)),
-      };
-    };
-    window.addEventListener('deviceorientation', applyOri, { passive: true });
+function runIntro() {
+  if (reduced) {
+    uniforms.uPhase.value = 4;
+    uniforms.uAmp.value = 0.6;
+    slamHeadline();
+    return;
   }
 
-  function resize() {
-    const w = canvas.clientWidth || window.innerWidth;
-    const h = canvas.clientHeight || window.innerHeight;
-    renderer.setSize(w, h, false);
-    camera.aspect = w / Math.max(1, h);
-    camera.updateProjectionMatrix();
-  }
-  window.addEventListener('resize', resize, { passive: true });
-  resize();
+  // Play Runway cinematic under / blended with live particles
+  const tryPlay = () => {
+    cinematic.classList.add('playing');
+    const p = cinematic.play();
+    if (p && p.catch) p.catch(() => {});
+  };
+  if (cinematic.readyState >= 2) tryPlay();
+  else cinematic.addEventListener('canplay', tryPlay, { once: true });
 
-  let last = performance.now();
-  let autoT = 0;
-  const posAttr = geo.getAttribute('position');
-  // climb progress for animated rise (0→1)
-  let climb = 0;
+  // Phase 0: dark spark (0–0.6s)
+  // Phase 1: wave rises (0.6–1.8s)
+  // Phase 2: crash (1.8–3.2s) + headline slam
+  // Phase 3: morph (3.2–5s)
+  // then handoff: fade cinematic, keep live wave calm-ish for scroll
+  const tl = { t: 0 };
+  const start = performance.now();
 
-  function frame(now) {
-    const dt = Math.min(0.05, (now - last) / 1000);
-    last = now;
-    autoT += dt;
-    climb = Math.min(1, climb + dt * 0.12);
-
-    pointer.x += (pointer.tx - pointer.x) * 0.06;
-    pointer.y += (pointer.ty - pointer.y) * 0.06;
-    drag.yaw += (drag.tyaw - drag.yaw) * 0.08;
-    drag.pitch += (drag.tpitch - drag.pitch) * 0.08;
-
-    const arr = posAttr.array;
-    for (let i = 0; i < COUNT; i++) {
-      const kind = seeds[i * 4];
-      const a = seeds[i * 4 + 1];
-      const b = seeds[i * 4 + 2];
-      const spd = seeds[i * 4 + 3];
-      const baseX = positions[i * 3];
-      // recompute from seeds for animated kinds
-      if (kind === 0) {
-        // line: a=t, b=lineIndex
-        const t = a;
-        const li = b | 0;
-        const kn = lineKinds[li] || 'eq';
-        const x = -2.2 + t * 4.4;
-        const reveal = Math.min(1, climb * 1.15 + t * 0.15);
-        const h = sampleLine(kn, t) * 2.6 * reveal - 0.6;
-        const pulse = Math.sin(autoT * spd + t * 6) * 0.025;
-        arr[i * 3] = x;
-        arr[i * 3 + 1] = h + pulse;
-        arr[i * 3 + 2] = -0.55 + li * 0.55 + Math.sin(autoT * 0.4 + t) * 0.02;
-      } else if (kind === 1) {
-        // bar column: a=bx, b=targetH — particles rise with climb
-        const bx = a;
-        const targetH = b;
-        const phase = (i % 97) / 97;
-        const rise = Math.min(1, climb * 1.1 + phase * 0.2);
-        const yMax = -0.7 + targetH * rise;
-        const u = ((autoT * spd * 0.15 + phase) % 1);
-        const y = -0.7 + u * (yMax + 0.7);
-        arr[i * 3] = bx + Math.sin(autoT * 0.6 + phase * 10) * 0.02;
-        arr[i * 3 + 1] = y;
-        arr[i * 3 + 2] = 1.15 + Math.cos(autoT * 0.5 + phase * 8) * 0.04;
-      } else if (kind === 2) {
-        // arrow spark rising
-        const ax = a;
-        const u0 = b;
-        const rise = Math.min(1, climb + 0.1);
-        const travel = (u0 + autoT * spd * 0.08) % 1;
-        const tipY = (-0.4 + travel * 2.6) * rise;
-        const side = (i % 2 === 0) ? -1 : 1;
-        arr[i * 3] = ax + side * (1 - travel) * 0.28;
-        arr[i * 3 + 1] = tipY;
-        arr[i * 3 + 2] = -1.35 + (i % 3) * 0.08;
-      } else {
-        // mist drift
-        const ang = a + autoT * spd * 0.25;
-        const r = b;
-        arr[i * 3] = Math.cos(ang) * r * 2.2;
-        arr[i * 3 + 1] = Math.sin(ang * 0.7 + autoT * 0.2) * 1.2;
-        arr[i * 3 + 2] = Math.sin(ang) * r * 1.6;
+  function tickIntro() {
+    const elapsed = (performance.now() - start) / 1000;
+    if (elapsed < 0.5) {
+      uniforms.uPhase.value = 0;
+      uniforms.uAmp.value = 0.05;
+      uniforms.uCrash.value = 0;
+    } else if (elapsed < 1.6) {
+      const k = (elapsed - 0.5) / 1.1;
+      uniforms.uPhase.value = k;
+      uniforms.uAmp.value = 0.2 + k * 2.4;
+      uniforms.uCrash.value = k * 0.35;
+    } else if (elapsed < 3.0) {
+      const k = (elapsed - 1.6) / 1.4;
+      uniforms.uPhase.value = 1 + k;
+      uniforms.uAmp.value = 2.6 + k * 0.8;
+      uniforms.uCrash.value = 0.35 + k * 0.9;
+      if (elapsed > 2.2 && !introDone) {
+        introDone = true;
+        slamHeadline();
       }
+    } else if (elapsed < 4.5) {
+      const k = (elapsed - 3.0) / 1.5;
+      uniforms.uPhase.value = 2 + k * 1.2;
+      uniforms.uAmp.value = 3.2 - k * 0.6;
+      uniforms.uCrash.value = 1.2 - k * 0.4;
+      cinematic.classList.add('fade-out');
+      cinematic.classList.remove('playing');
+    } else {
+      uniforms.uPhase.value = 3.2;
+      uniforms.uAmp.value = 2.4;
+      uniforms.uCrash.value = 0.55;
+      cinematic.pause();
+      return;
     }
-    posAttr.needsUpdate = true;
-
-    // gentle HUD climb synced to hologram rise
-    setBureauScores(climb * 0.55);
-
-    const gx = gyro ? gyro.x : 0;
-    const gy = gyro ? gyro.y : 0;
-    const parallaxX = (gyro ? gx : pointer.x) * 0.55 + drag.yaw * 0.35;
-    const parallaxY = (gyro ? -gy : -pointer.y) * 0.35 + drag.pitch * 0.25;
-    const idleX = Math.sin(autoT * 0.22) * 0.12;
-    const idleY = Math.cos(autoT * 0.18) * 0.07;
-
-    root.rotation.y = drag.yaw + parallaxX * 0.2;
-    root.rotation.x = drag.pitch * 0.35 + parallaxY * 0.12;
-
-    camera.position.x = 0.35 + parallaxX * 0.45 + idleX;
-    camera.position.y = 0.55 + parallaxY * 0.35 + idleY;
-    camera.position.z = 7.2;
-    camera.lookAt(0.15, 0.35, 0);
-
-    grid.rotation.y = -autoT * 0.03;
-
-    renderer.render(scene, camera);
-    requestAnimationFrame(frame);
+    requestAnimationFrame(tickIntro);
   }
-  requestAnimationFrame(frame);
+  requestAnimationFrame(tickIntro);
 
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) mat.opacity = 0.45;
-    else mat.opacity = 0.92;
+  // Safety slam
+  setTimeout(() => { if (!introDone) { introDone = true; slamHeadline(); } }, 2800);
+}
+
+function slamHeadline() {
+  document.querySelector('.headline')?.classList.add('slam');
+  document.querySelectorAll('.reveal-hero').forEach((el, i) => {
+    setTimeout(() => el.classList.add('show'), 120 + i * 90);
   });
-})();
+}
+
+/* Pointer */
+window.addEventListener('pointermove', (e) => {
+  pointerActive = true;
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+}, { passive: true });
+window.addEventListener('pointerleave', () => { pointerActive = false; });
+
+/* Resize */
+window.addEventListener('resize', () => {
+  const w = window.innerWidth, h = window.innerHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+  if (composer) composer.setSize(w, h);
+  uniforms.uPixelRatio.value = renderer.getPixelRatio();
+});
+
+
+function updateWaveDim() {
+  const root = document.getElementById('wave-root');
+  if (!root || !introDone) return;
+  const y = window.scrollY || 0;
+  const vh = window.innerHeight || 1;
+  if (y > vh * 2.4) root.classList.add('calmed');
+  else root.classList.remove('calmed');
+  if (y > vh * 0.55) root.classList.add('dimmed');
+  else root.classList.remove('dimmed');
+}
+
+/* Scroll: Lenis + IntersectionObserver (stable; avoids GSAP/Lenis parent bugs) */
+let scrollPhase = 0;
+
+function animateCount(num) {
+  if (!num || num.dataset.done) return;
+  num.dataset.done = '1';
+  const target = parseFloat(num.dataset.target || '0');
+  const suffix = (num.textContent.match(/[^\d.]+$/) || [''])[0];
+  const start = performance.now();
+  const dur = 1200;
+  function tick(now) {
+    const k = Math.min(1, (now - start) / dur);
+    const eased = 1 - Math.pow(1 - k, 3);
+    const v = target * eased;
+    num.textContent = (Number.isInteger(target) ? Math.round(v) : Math.round(v)) + suffix;
+    if (k < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+function drawEnergyLines() {
+  const svg = document.getElementById('energy-lines');
+  if (!svg || !grid) return;
+  const panels = [...grid.querySelectorAll('.glass-panel.in')];
+  const gr = grid.getBoundingClientRect();
+  if (gr.width < 10) return;
+  svg.setAttribute('viewBox', `0 0 ${gr.width} ${gr.height}`);
+  svg.style.width = gr.width + 'px';
+  svg.style.height = gr.height + 'px';
+  let html = '';
+  for (let i = 0; i < panels.length - 1; i++) {
+    const a = panels[i].getBoundingClientRect();
+    const b = panels[i + 1].getBoundingClientRect();
+    const x1 = a.left + a.width / 2 - gr.left;
+    const y1 = a.top + a.height / 2 - gr.top;
+    const x2 = b.left + b.width / 2 - gr.left;
+    const y2 = b.top + b.height / 2 - gr.top;
+    html += `<path d="M${x1},${y1} C${x1},${(y1 + y2) / 2} ${x2},${(y1 + y2) / 2} ${x2},${y2}" fill="none" stroke="url(#eg)" stroke-width="1.2" opacity="0.55"/>`;
+  }
+  svg.innerHTML = `<defs><linearGradient id="eg" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#1A6B3C"/><stop offset="100%" stop-color="#F4D96B"/></linearGradient></defs>${html}`;
+}
+
+const io = new IntersectionObserver((entries) => {
+  entries.forEach((en) => {
+    if (!en.isIntersecting) return;
+    const el = en.target;
+    if (el.classList.contains('glass-panel')) {
+      el.classList.add('in');
+      animateCount(el.querySelector('.panel-num'));
+      drawEnergyLines();
+    }
+    if (el.id === 'funding') {
+      document.querySelectorAll('.sky-col').forEach((c, i) => setTimeout(() => c.classList.add('in'), i * 80));
+    }
+    if (el.id === 'finale' || el.id === 'finale-core') {
+      document.getElementById('finale-core')?.classList.add('in');
+    }
+  });
+}, { threshold: 0.18, rootMargin: '0px 0px -8% 0px' });
+
+document.querySelectorAll('#panel-grid .glass-panel, #funding, #finale, #finale-core').forEach((el) => io.observe(el));
+if (document.getElementById('finale-core')) {
+  // also force-in when near bottom
+}
+
+document.querySelectorAll('.diy .glass-panel, .pricing .glass-panel').forEach((el) => el.classList.add('in'));
+
+if (!reduced && window.Lenis) {
+  try {
+    const lenis = new Lenis({
+      duration: 1.25,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      smoothWheel: true,
+    });
+    function lenisRaf(time) { lenis.raf(time); requestAnimationFrame(lenisRaf); }
+    requestAnimationFrame(lenisRaf);
+    lenis.on('scroll', ({ progress }) => {
+      updateWaveDim();
+      // Map page scroll into wave morph once intro is done
+      if (!introDone) return;
+      const arsenal = document.getElementById('arsenal');
+      if (!arsenal) return;
+      const rect = arsenal.getBoundingClientRect();
+      const vh = window.innerHeight || 1;
+      const p = 1 - Math.min(1, Math.max(0, rect.bottom / (rect.height + vh)));
+      scrollPhase = p;
+    });
+  } catch (e) {
+    console.warn('Lenis init skipped', e);
+  }
+}
+
+window.addEventListener('scroll', () => {
+  updateWaveDim();
+  if (!introDone) return;
+  const arsenal = document.getElementById('arsenal');
+  if (!arsenal) return;
+  const rect = arsenal.getBoundingClientRect();
+  const vh = window.innerHeight || 1;
+  scrollPhase = 1 - Math.min(1, Math.max(0, rect.bottom / (rect.height + vh)));
+}, { passive: true });
+
+/* Main loop */
+function animate() {
+  requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+  uniforms.uTime.value = t;
+
+  mouseSmooth.lerp(mouse, 0.08);
+  // Project NDC mouse into wave XZ roughly
+  uniforms.uMouse.value.set(mouseSmooth.x * 10, mouseSmooth.y * 6);
+  uniforms.uMouseForce.value = THREE.MathUtils.lerp(
+    uniforms.uMouseForce.value,
+    pointerActive ? 1.0 : 0.15,
+    0.06
+  );
+
+  // Scroll-driven morph deepen
+  if (introDone) {
+    const targetPhase = 3.0 + scrollPhase * 1.2;
+    uniforms.uPhase.value += (targetPhase - uniforms.uPhase.value) * 0.04;
+    const targetAmp = 2.2 - scrollPhase * 0.8;
+    uniforms.uAmp.value += (targetAmp - uniforms.uAmp.value) * 0.04;
+  }
+
+  camera.position.x = mouseSmooth.x * 0.6;
+  camera.position.y = 2.2 + mouseSmooth.y * 0.3;
+  camera.lookAt(0, 1.2, 0);
+
+  key.intensity = 2.2 + Math.sin(t * 1.5) * 0.4 + uniforms.uCrash.value * 1.2;
+
+  if (useComposer && composer) composer.render(); else renderer.render(scene, camera);
+}
+animate();
+runIntro();
+
+// Lazy: if cinematic sources 404, ignore
+cinematic.addEventListener('error', () => {
+  cinematic.classList.remove('playing');
+});

@@ -1,0 +1,23 @@
+Score OS hologram preview — The Wave cinematic — Runway credit log
+Started: 2026-10-29 ~02:15 America/New_York (UTC-4)
+Budget cap: 150 credits (do not exceed without stopping)
+Opening balance (whoami): 1032 (plan 732 + purchased 300)
+
+--- Generations ---
+2026-10-29 02:16 ET  KF1 Maxine gold spark   nano-banana-2.1 1K 16:9   task 2597d8db-6f38-4e70-bc80-2db85d223719   ~4 cr
+2026-10-29 02:16 ET  KF2 tsunami wave peak   nano-banana-2.1 1K 16:9   task ef3e498a-0e74-4330-ab3a-8f37fdc6c222   ~4 cr
+                        Subtotal keyframes: ~8 cr
+2026-10-29 02:17 ET  V1 spark→rise animate  gen-4-turbo 5s 1280x720  task bafa8296-1060-4672-9e94-612b169c1f68   25 cr (from KF1)
+2026-10-29 02:17 ET  V2 wave crash animate   gen-4-turbo 5s 1280x720  task f641cfb1-195e-44ef-8806-0ad2b19ca9d2   25 cr (from KF2)
+                        Subtotal video (est): 50 cr
+2026-10-29 02:17 ET  V1 spark→rise FAILED   gen-4-turbo 5s           task bafa8296-1060-4672-9e94-612b169c1f68   INTERNAL.BAD_OUTPUT (may/may not bill)
+2026-10-29 02:17 ET  V2 wave crash OK        gen-4-turbo 5s 1280x720  task f641cfb1-195e-44ef-8806-0ad2b19ca9d2   25 cr
+2026-10-29 02:19 ET  V1b spark→rise retry    gen-4-turbo 5s 1280x720  (pending)
+
+2026-10-29 02:19 ET  V1b spark→rise retry    gen-4-turbo 5s 1280x720  task 757907b8…   ~25 cr (succeeded; stitched with V2)
+
+--- Closing ---
+Closing balance (whoami): 974 (plan 649 + purchased 325)
+Credits used this session: 58 (1032 → 974)
+Budget cap: 150 — UNDER BUDGET
+Stitched output: media/wave-intro.mp4 (~2.5 MB, 9.25s), media/wave-intro.webm (~2.4 MB), media/wave-poster.jpg

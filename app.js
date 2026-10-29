@@ -12,7 +12,7 @@ import { OutputPass } from './vendor/postprocessing/OutputPass.js';
 const FEATURES = [
   { name: 'Credit Monitoring', desc: 'Real-time 3-bureau credit monitoring built in, so you and your clients always know the score.', num: 3, suffix: ' bureaus' },
   { name: 'Agency CRM', desc: 'Manage leads, clients, documents, and notes in one command center built for high-volume agencies.', num: 1, suffix: ' command center' },
-  { name: 'Marketing', desc: 'Built-in marketing tools to capture leads and turn them into signed, paying clients.', num: 24, suffix: ' automations*' },
+  { name: 'Marketing', desc: 'Built-in marketing tools to capture leads and turn them into signed, paying clients.', num: 1, suffix: ' growth engine' },
   { name: 'Free Website', desc: 'A professional, conversion-ready website included free — your agency online and taking leads in minutes.', num: 1, suffix: ' site included' },
   { name: '3-Bureau Tracking', desc: 'Track disputes across Equifax, Experian, and TransUnion on one live scoreboard — no more spreadsheets.', num: 3, suffix: ' bureaus live' },
   { name: 'AI Dispute Engine', desc: 'Maxine reads each credit report and drafts unique, non-templated letters the bureaus can\'t auto-reject.', num: 1, suffix: ' Maxine AI' },
@@ -21,9 +21,9 @@ const FEATURES = [
   { name: 'Booking Calendar', desc: 'Let clients book consultations around the clock with a built-in scheduling calendar.', num: 24, suffix: '/7 booking' },
   { name: 'Mentorship', desc: 'Learn from operators who\'ve scaled — ongoing mentorship to help you grow your agency faster.', num: 1, suffix: ' mentorship path' },
   { name: 'Community', desc: 'Join a private community of credit repair owners leveling up and sharing wins together.', num: 1, suffix: ' private community' },
-  { name: 'Training Videos', desc: 'A full library of training videos to onboard fast and master every play in the platform.', num: 50, suffix: '+ lessons*' },
+  { name: 'Training Videos', desc: 'A full library of training videos to onboard fast and master every play in the platform.', num: 1, suffix: ' training library' },
   { name: 'Support System', desc: 'A built-in support system so you\'re never stuck — real help exactly when you need it.', num: 1, suffix: ' support system' },
-  { name: 'Tons of Automations', desc: 'Smart automations handle the busywork — follow-ups, progress updates, and reminders on autopilot.', num: 40, suffix: '+ flows*' },
+  { name: 'Tons of Automations', desc: 'Smart automations handle the busywork — follow-ups, progress updates, and reminders on autopilot.', num: 1, suffix: ' autopilot' },
 ];
 
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;

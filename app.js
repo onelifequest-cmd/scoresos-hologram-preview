@@ -50,7 +50,7 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: !isMobile, alpha: 
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 0.78;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
@@ -136,19 +136,19 @@ void main(){
   }
   p = mix(sparkPos, p, 1.0 - sparkMix * (aKind < 1.5 ? 1.0 : 0.2));
 
-  // Morph phase (letters / skyline / core)
-  float morphT = smoothstep(2.4, 3.2, uPhase);
-  float calmT = smoothstep(3.5, 4.2, uPhase);
-  vec3 morphP = mix(p, aMorph, morphT);
-  // Calming: settle into gentle low wave + drift toward core
-  vec3 core = normalize(aMorph + vec3(0.001)) * (2.0 + hash(aSeed) * 1.5);
-  core.y += 1.0;
-  p = mix(morphP, mix(morphP * 0.3 + core * 0.7, vec3(p.x * 0.4, p.y * 0.25 + 0.4, p.z * 0.4), 0.5), calmT);
+  // Morph: light skyline hints only — keep living rolling surface
+  float morphT = smoothstep(2.6, 3.6, uPhase) * 0.28;
+  p = mix(p, aMorph * 0.85 + p * 0.15, morphT);
+  // Post-crash settle: keep Gerstner roll, slightly lower amp feel via y scale
+  float settle = smoothstep(2.8, 3.6, uPhase);
+  p.y *= mix(1.0, 0.78, settle);
+  p.y += sin(x * 0.35 + t * 1.1 + aSeed) * 0.15 * settle;
 
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   gl_Position = projectionMatrix * mv;
-  float sizeBoost = 1.0 + uCrash * 0.6 + (aKind > 0.5 ? 0.5 : 0.0) + sparkMix * 2.0;
-  gl_PointSize = uSize * uPixelRatio * sizeBoost * (1.2 / -mv.z);
+  float sizeBoost = 1.0 + uCrash * 0.25 + (aKind > 0.5 ? 0.25 : 0.0) + sparkMix * 1.4;
+  sizeBoost *= mix(1.0, 0.72, settle);
+  gl_PointSize = uSize * uPixelRatio * sizeBoost * (1.15 / -mv.z);
 }
 `;
 
@@ -165,35 +165,43 @@ void main(){
   vec2 uv = gl_PointCoord - 0.5;
   float r = length(uv);
   if (r > 0.5) discard;
-  float soft = smoothstep(0.5, 0.05, r);
+  float soft = smoothstep(0.5, 0.08, r);
 
-  // Brand palette
+  // Brand palette — never white
   vec3 deep = vec3(0.055, 0.176, 0.102);
   vec3 green = vec3(0.102, 0.420, 0.235);
   vec3 gold = vec3(0.831, 0.686, 0.216);
-  vec3 bright = vec3(0.957, 0.851, 0.420);
-  vec3 mint = vec3(0.910, 0.957, 0.929);
+  vec3 bright = vec3(0.92, 0.78, 0.28);
 
-  float h = clamp(vHeight * 0.18 + 0.35, 0.0, 1.0);
-  vec3 col = mix(deep, green, clamp(h * 1.15, 0.0, 1.0));
-  col = mix(col, gold, smoothstep(0.55, 0.95, h) * 0.55);
-  col = mix(col, bright, smoothstep(0.85, 1.3, h) * 0.45 + uCrash * 0.18);
-  // Keep body emerald-dominant so bloom doesn't bleach to white-gold
-  col = mix(col, green, 0.22);
+  float h = clamp(vHeight * 0.16 + 0.3, 0.0, 1.0);
+  vec3 col = mix(deep, green, clamp(h * 1.2, 0.0, 1.0));
+  col = mix(col, gold, smoothstep(0.45, 0.9, h) * 0.7);
+  col = mix(col, bright, smoothstep(0.75, 1.15, h) * 0.35 + uCrash * 0.08);
+  // Emerald bias kills bloom bleach
+  col = mix(col, green, 0.32);
 
-  // Crest foam / spark cores more gold
-  if (vKind > 0.5) col = mix(col, bright, 0.65);
-  if (vKind > 1.5) col = mix(bright, mint, 0.3);
+  if (vKind > 0.5) col = mix(col, gold, 0.55);
+  if (vKind > 1.5) col = mix(gold, bright, 0.45);
 
   float spark = 1.0 - smoothstep(0.0, 0.4, uPhase);
-  col = mix(col, bright, spark * (vKind > 1.0 ? 1.0 : 0.2));
+  col = mix(col, bright, spark * (vKind > 1.0 ? 0.7 : 0.12));
 
-  float alpha = soft * (0.55 + h * 0.45);
+  // Hard luminance cap — stay green/gold, never white fog
+  float lum = dot(col, vec3(0.299, 0.587, 0.114));
+  if (lum > 0.72) col *= 0.72 / lum;
+  col = min(col, vec3(0.95, 0.86, 0.42));
+
+  // After crash / calm: pull brightness down further
+  float settle = smoothstep(2.6, 3.4, uPhase);
+  col = mix(col, mix(green, gold, 0.45), settle * 0.28);
+  col *= 1.0 - settle * 0.12;
+
+  float alpha = soft * (0.5 + h * 0.4);
   alpha *= 0.85 + 0.15 * sin(vSeed * 40.0);
-  // Slight mouse proximity brighten
-  alpha *= 1.0 + exp(-vDist * 0.6) * 0.35;
+  alpha *= 1.0 + exp(-vDist * 0.6) * 0.25;
+  alpha *= 1.0 - settle * 0.08;
 
-  gl_FragColor = vec4(col, alpha);
+  gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.92));
 }
 `;
 
@@ -299,11 +307,15 @@ function buildComposer() {
     composer.addPass(new RenderPass(scene, camera));
     const bloom = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
-      isMobile ? 0.42 : 0.62,
-      0.35,
-      0.82
+      isMobile ? 0.22 : 0.32,
+      0.28,
+      0.9
     );
+    bloom.threshold = 0.9;
+    bloom.strength = isMobile ? 0.22 : 0.32;
+    bloom.radius = 0.28;
     composer.addPass(bloom);
+    window.__bloom = bloom;
     composer.addPass(new OutputPass());
   } catch (e) {
     console.warn('Bloom composer unavailable, falling back', e);
@@ -364,15 +376,20 @@ function runIntro() {
       }
     } else if (elapsed < 4.5) {
       const k = (elapsed - 3.0) / 1.5;
-      uniforms.uPhase.value = 2 + k * 1.2;
-      uniforms.uAmp.value = 3.2 - k * 0.6;
-      uniforms.uCrash.value = 1.2 - k * 0.4;
+      // Soften crash into living crest — phase stays ~2.1–2.6 (pre-fog)
+      uniforms.uPhase.value = 2.0 + k * 0.55;
+      uniforms.uAmp.value = 2.8 - k * 0.35;
+      uniforms.uCrash.value = 1.0 - k * 0.7;
+      if (window.__bloom) {
+        window.__bloom.strength = (isMobile ? 0.22 : 0.32) * (1 - k * 0.45);
+      }
       cinematic.classList.add('fade-out');
       cinematic.classList.remove('playing');
     } else {
-      uniforms.uPhase.value = 3.2;
-      uniforms.uAmp.value = 2.4;
-      uniforms.uCrash.value = 0.55;
+      uniforms.uPhase.value = 2.55;
+      uniforms.uAmp.value = 2.35;
+      uniforms.uCrash.value = 0.22;
+      if (window.__bloom) window.__bloom.strength = isMobile ? 0.18 : 0.24;
       cinematic.pause();
       return;
     }
@@ -415,9 +432,9 @@ function updateWaveDim() {
   if (!root || !introDone) return;
   const y = window.scrollY || 0;
   const vh = window.innerHeight || 1;
-  if (y > vh * 2.4) root.classList.add('calmed');
+  if (y > vh * 3.2) root.classList.add('calmed');
   else root.classList.remove('calmed');
-  if (y > vh * 0.55) root.classList.add('dimmed');
+  if (y > vh * 0.85) root.classList.add('dimmed');
   else root.classList.remove('dimmed');
 }
 
@@ -446,21 +463,38 @@ function drawEnergyLines() {
   if (!svg || !grid) return;
   const panels = [...grid.querySelectorAll('.glass-panel.in')];
   const gr = grid.getBoundingClientRect();
-  if (gr.width < 10) return;
-  svg.setAttribute('viewBox', `0 0 ${gr.width} ${gr.height}`);
-  svg.style.width = gr.width + 'px';
-  svg.style.height = gr.height + 'px';
+  if (gr.width < 10 || panels.length < 2) return;
+  // Position SVG over the arsenal section (not just grid box) for full coverage
+  const arsenal = document.getElementById('arsenal');
+  const ar = arsenal.getBoundingClientRect();
+  const w = ar.width;
+  const h = Math.max(gr.height + 80, ar.height);
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svg.style.position = 'absolute';
+  svg.style.width = w + 'px';
+  svg.style.height = h + 'px';
+  svg.style.left = '0';
+  svg.style.top = '0';
+  svg.style.zIndex = '3';
+  svg.style.pointerEvents = 'none';
   let html = '';
   for (let i = 0; i < panels.length - 1; i++) {
     const a = panels[i].getBoundingClientRect();
     const b = panels[i + 1].getBoundingClientRect();
-    const x1 = a.left + a.width / 2 - gr.left;
-    const y1 = a.top + a.height / 2 - gr.top;
-    const x2 = b.left + b.width / 2 - gr.left;
-    const y2 = b.top + b.height / 2 - gr.top;
-    html += `<path d="M${x1},${y1} C${x1},${(y1 + y2) / 2} ${x2},${(y1 + y2) / 2} ${x2},${y2}" fill="none" stroke="url(#eg)" stroke-width="1.2" opacity="0.55"/>`;
+    const x1 = a.left + a.width / 2 - ar.left;
+    const y1 = a.top + a.height / 2 - ar.top;
+    const x2 = b.left + b.width / 2 - ar.left;
+    const y2 = b.top + b.height / 2 - ar.top;
+    const mx = (x1 + x2) / 2 + ((i % 2) ? 40 : -40);
+    const my = (y1 + y2) / 2;
+    html += `<path d="M${x1},${y1} Q${mx},${my} ${x2},${y2}" fill="none" stroke="url(#eg)" stroke-width="3" opacity="1"/>`;
+    html += `<circle cx="${x1}" cy="${y1}" r="4.5" fill="#F4D96B" opacity="0.9"><animate attributeName="opacity" values="0.45;1;0.45" dur="1.6s" repeatCount="indefinite"/></circle>`;
   }
-  svg.innerHTML = `<defs><linearGradient id="eg" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#1A6B3C"/><stop offset="100%" stop-color="#F4D96B"/></linearGradient></defs>${html}`;
+  const last = panels[panels.length - 1].getBoundingClientRect();
+  const lx = last.left + last.width / 2 - ar.left;
+  const ly = last.top + last.height / 2 - ar.top;
+  html += `<circle cx="${lx}" cy="${ly}" r="4.5" fill="#F4D96B" opacity="0.9"/>`;
+  svg.innerHTML = `<defs><linearGradient id="eg" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#1A6B3C"/><stop offset="50%" stop-color="#F4D96B"/><stop offset="100%" stop-color="#D4AF37"/></linearGradient></defs>${html}`;
 }
 
 const io = new IntersectionObserver((entries) => {
@@ -479,14 +513,23 @@ const io = new IntersectionObserver((entries) => {
       document.getElementById('finale-core')?.classList.add('in');
     }
   });
-}, { threshold: 0.18, rootMargin: '0px 0px -8% 0px' });
+}, { threshold: 0.05, rootMargin: '20% 0px 10% 0px' });
 
 document.querySelectorAll('#panel-grid .glass-panel, #funding, #finale, #finale-core').forEach((el) => io.observe(el));
-if (document.getElementById('finale-core')) {
-  // also force-in when near bottom
-}
+
+// Pre-arm first 4 panels so the arsenal never opens empty
+[...grid.querySelectorAll('.glass-panel')].slice(0, 4).forEach((el, i) => {
+  setTimeout(() => {
+    el.classList.add('in');
+    animateCount(el.querySelector('.panel-num'));
+    drawEnergyLines();
+  }, 400 + i * 120);
+});
 
 document.querySelectorAll('.diy .glass-panel, .pricing .glass-panel').forEach((el) => el.classList.add('in'));
+
+window.addEventListener('scroll', () => { if (grid) drawEnergyLines(); }, { passive: true });
+window.addEventListener('resize', () => { if (grid) drawEnergyLines(); }, { passive: true });
 
 if (!reduced && window.Lenis) {
   try {
@@ -540,17 +583,19 @@ function animate() {
 
   // Scroll-driven morph deepen
   if (introDone) {
-    const targetPhase = 3.0 + scrollPhase * 1.2;
-    uniforms.uPhase.value += (targetPhase - uniforms.uPhase.value) * 0.04;
-    const targetAmp = 2.2 - scrollPhase * 0.8;
-    uniforms.uAmp.value += (targetAmp - uniforms.uAmp.value) * 0.04;
+    // Stay in living-crest band (≈2.4–2.9); never fog/white morph
+    const targetPhase = 2.45 + scrollPhase * 0.4;
+    uniforms.uPhase.value += (targetPhase - uniforms.uPhase.value) * 0.035;
+    const targetAmp = 2.35 - scrollPhase * 0.35;
+    uniforms.uAmp.value += (targetAmp - uniforms.uAmp.value) * 0.035;
+    uniforms.uCrash.value += (0.18 - uniforms.uCrash.value) * 0.03;
   }
 
   camera.position.x = mouseSmooth.x * 0.6;
   camera.position.y = 2.2 + mouseSmooth.y * 0.3;
   camera.lookAt(0, 1.2, 0);
 
-  key.intensity = 2.2 + Math.sin(t * 1.5) * 0.4 + uniforms.uCrash.value * 1.2;
+  key.intensity = 1.1 + Math.sin(t * 1.5) * 0.2 + uniforms.uCrash.value * 0.45;
 
   if (useComposer && composer) composer.render(); else renderer.render(scene, camera);
 }

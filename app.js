@@ -1,7 +1,7 @@
 /**
  * Score OS hologram preview
- * Three.js particle vortex → holographic credit-score gauge
- * Cursor parallax / drag-to-spin / gyro or auto-motion fallback
+ * Three.js particle rising credit-score charts + funding columns
+ * Cursor parallax / drag-to-rotate / gyro or auto-motion fallback
  * Mobile / low-power / reduced-motion → looping hero video
  */
 import * as THREE from './vendor/three.module.min.js';
@@ -52,27 +52,23 @@ import * as THREE from './vendor/three.module.min.js';
     reveals.forEach((el) => el.classList.add('in'));
   }
 
-  /* ---------- Score HUD helpers ---------- */
-  const scoreEl = document.getElementById('gaugeScore');
-  const bandEl = document.getElementById('gaugeBand');
-  const climbFill = document.getElementById('climbFill');
-  function bandFor(v) {
-    if (v < 580) return 'Poor';
-    if (v < 670) return 'Fair';
-    if (v < 740) return 'Good';
-    return 'Excellent';
+  /* ---------- Sample scoreboard HUD (illustrative) ---------- */
+  const baseScores = { eq: 620, ex: 635, tu: 608 };
+  const peakScores = { eq: 745, ex: 752, tu: 729 };
+  function setBureauScores(t) {
+    const clamp = Math.min(1, Math.max(0, t));
+    ['eq', 'ex', 'tu'].forEach((k) => {
+      const v = Math.round(baseScores[k] + (peakScores[k] - baseScores[k]) * clamp);
+      const delta = v - baseScores[k];
+      const el = document.querySelector(`[data-bureau="${k}"]`);
+      const dEl = document.querySelector(`[data-delta="${k}"]`);
+      if (el) el.textContent = String(v);
+      if (dEl) dEl.textContent = (delta >= 0 ? '+' : '') + delta;
+    });
   }
-  function setScore(v) {
-    const n = Math.round(v);
-    if (scoreEl) scoreEl.textContent = String(n);
-    if (bandEl) bandEl.textContent = bandFor(n);
-    if (climbFill) {
-      const t = Math.min(1, Math.max(0, (n - 580) / (740 - 580)));
-      climbFill.style.width = (12 + t * 88) + '%';
-    }
-  }
+  setBureauScores(0);
 
-  /* ---------- Scroll hologram ornament + climb ---------- */
+  /* ---------- Scroll ornament + score climb ---------- */
   const scrollHolo = document.getElementById('scrollHolo');
   const scrollHoloCore = document.getElementById('scrollHoloCore');
   function onScrollFx() {
@@ -80,20 +76,19 @@ import * as THREE from './vendor/three.module.min.js';
     const max = Math.max(1, document.body.scrollHeight - window.innerHeight);
     const t = y / max;
     if (scrollHolo) {
-      scrollHolo.style.transform = `translateY(${t * -80}px) rotate(${t * 40}deg)`;
+      scrollHolo.style.transform = `translateY(${t * -60}px)`;
       scrollHolo.style.opacity = String(0.35 + Math.sin(t * Math.PI) * 0.4);
     }
     if (scrollHoloCore) {
-      scrollHoloCore.style.transform = `scale(${0.85 + t * 0.4}) rotate(${-t * 60}deg)`;
+      scrollHoloCore.style.transform = `scale(${0.85 + t * 0.35})`;
     }
-    // Soft score climb only once the flow section is on screen
-    const flow = document.getElementById('flow');
-    if (flow) {
-      const r = flow.getBoundingClientRect();
+    const arsenal = document.getElementById('arsenal');
+    if (arsenal) {
+      const r = arsenal.getBoundingClientRect();
       const vh = window.innerHeight || 1;
       if (r.top < vh * 0.92 && r.bottom > 0) {
         const prog = Math.min(1, Math.max(0, (vh * 0.85 - r.top) / (vh * 0.85 + r.height * 0.35)));
-        setScore(620 + prog * 140);
+        setBureauScores(prog);
       }
     }
   }
@@ -131,11 +126,10 @@ import * as THREE from './vendor/three.module.min.js';
 
   if (prefersVideo) {
     enableVideoFallback();
-    // Still allow gentle CSS HUD animation via scroll
     return;
   }
 
-  /* ---------- WebGL particle vortex ---------- */
+  /* ---------- WebGL rising particle charts ---------- */
   const canvas = document.getElementById('holoCanvas');
   if (!canvas) { enableVideoFallback(); return; }
 
@@ -158,34 +152,129 @@ import * as THREE from './vendor/three.module.min.js';
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
-  camera.position.set(0, 0.15, 6.2);
+  camera.position.set(0.4, 0.55, 7.2);
 
-  const COUNT = coarse ? 4500 : 9000;
+  const root = new THREE.Group();
+  scene.add(root);
+
+  // Sample climb curves for three bureau lines (normalized 0..1 over x)
+  function sampleLine(kind, x) {
+    // x in [0,1]; returns height 0..1 that climbs
+    const waves = {
+      eq: (t) => 0.18 + 0.72 * Math.pow(t, 0.85) + 0.04 * Math.sin(t * 9),
+      ex: (t) => 0.22 + 0.70 * Math.pow(t, 0.9) + 0.05 * Math.sin(t * 7 + 1),
+      tu: (t) => 0.15 + 0.68 * Math.pow(t, 0.8) + 0.045 * Math.sin(t * 8 + 2),
+    };
+    return Math.min(1, Math.max(0, waves[kind](x)));
+  }
+
+  const LINE_COLORS = { eq: GOLD, ex: MINT, tu: GREEN };
+  const lineKinds = ['eq', 'ex', 'tu'];
+  const PARTICLE_BUDGET = coarse ? 5200 : 9800;
+
+  // Allocate particles across: 3 line charts, bar columns, arrows, ambient mist
+  const linePts = Math.floor(PARTICLE_BUDGET * 0.42);
+  const barPts = Math.floor(PARTICLE_BUDGET * 0.28);
+  const arrowPts = Math.floor(PARTICLE_BUDGET * 0.12);
+  const mistPts = PARTICLE_BUDGET - linePts - barPts - arrowPts;
+
+  const COUNT = PARTICLE_BUDGET;
   const positions = new Float32Array(COUNT * 3);
   const colors = new Float32Array(COUNT * 3);
-  const seeds = new Float32Array(COUNT * 4); // angle, radius, ySpread, speed
+  const seeds = new Float32Array(COUNT * 4); // role params
+  // seeds: [kind, paramA, paramB, speed] — kind encoded as 0=line,1=bar,2=arrow,3=mist
 
-  for (let i = 0; i < COUNT; i++) {
-    const ring = Math.random();
-    // Bias toward a torus / gauge ring
-    const baseR = ring < 0.72
-      ? 1.55 + (Math.random() - 0.5) * 0.55
-      : 0.2 + Math.random() * 2.4;
-    const angle = Math.random() * Math.PI * 2;
-    const y = (Math.random() - 0.5) * (ring < 0.72 ? 0.35 : 2.8);
-    seeds[i * 4] = angle;
-    seeds[i * 4 + 1] = baseR;
-    seeds[i * 4 + 2] = y;
-    seeds[i * 4 + 3] = 0.35 + Math.random() * 0.9;
+  let idx = 0;
+  function pushParticle(x, y, z, color, kind, a, b, spd) {
+    positions[idx * 3] = x;
+    positions[idx * 3 + 1] = y;
+    positions[idx * 3 + 2] = z;
+    colors[idx * 3] = color.r;
+    colors[idx * 3 + 1] = color.g;
+    colors[idx * 3 + 2] = color.b;
+    seeds[idx * 4] = kind;
+    seeds[idx * 4 + 1] = a;
+    seeds[idx * 4 + 2] = b;
+    seeds[idx * 4 + 3] = spd;
+    idx++;
+  }
 
-    positions[i * 3] = Math.cos(angle) * baseR;
-    positions[i * 3 + 1] = y;
-    positions[i * 3 + 2] = Math.sin(angle) * baseR;
+  // --- Rising line charts (3 staggered Z lanes) ---
+  const perLine = Math.floor(linePts / 3);
+  for (let li = 0; li < 3; li++) {
+    const kind = lineKinds[li];
+    const col = LINE_COLORS[kind];
+    const zLane = -0.55 + li * 0.55;
+    for (let i = 0; i < perLine; i++) {
+      const t = i / (perLine - 1);
+      const x = -2.2 + t * 4.4;
+      const h = sampleLine(kind, t) * 2.6 - 0.6;
+      const jitter = (Math.random() - 0.5) * 0.06;
+      const c = col.clone().lerp(GOLD, Math.random() * 0.25);
+      pushParticle(x, h + jitter, zLane + (Math.random() - 0.5) * 0.08, c, 0, t, li, 0.4 + Math.random() * 0.6);
+    }
+  }
+  // fill remainder line budget
+  while (idx < linePts) {
+    const li = idx % 3;
+    const t = Math.random();
+    const kind = lineKinds[li];
+    const x = -2.2 + t * 4.4;
+    const h = sampleLine(kind, t) * 2.6 - 0.6;
+    pushParticle(x, h, -0.55 + li * 0.55, LINE_COLORS[kind], 0, t, li, 0.5);
+  }
 
-    const c = GOLD.clone().lerp(ring < 0.5 ? GREEN : MINT, Math.random() * 0.85);
-    colors[i * 3] = c.r;
-    colors[i * 3 + 1] = c.g;
-    colors[i * 3 + 2] = c.b;
+  // --- Rising bar / funding columns ---
+  const barCount = coarse ? 7 : 9;
+  const perBar = Math.floor(barPts / barCount);
+  for (let b = 0; b < barCount; b++) {
+    const bx = -2.0 + (b / (barCount - 1)) * 4.0;
+    const targetH = 0.5 + Math.pow((b + 1) / barCount, 1.15) * 2.4;
+    const isGold = b % 3 === 2;
+    const baseCol = isGold ? GOLD : GREEN.clone().lerp(MINT, 0.45);
+    for (let i = 0; i < perBar; i++) {
+      const u = Math.random();
+      const y = -0.7 + u * targetH;
+      const spread = 0.12 + (1 - u) * 0.04;
+      const x = bx + (Math.random() - 0.5) * spread;
+      const z = 1.15 + (Math.random() - 0.5) * 0.35;
+      const c = baseCol.clone().lerp(GOLD, Math.random() * 0.35);
+      pushParticle(x, y, z, c, 1, bx, targetH, 0.35 + Math.random() * 0.8);
+    }
+  }
+  while (idx < linePts + barPts) {
+    pushParticle((Math.random() - 0.5) * 4, Math.random() * 2 - 0.5, 1.1, GOLD, 1, 0, 1.5, 0.5);
+  }
+
+  // --- Upward arrows / approval sparks (particle chevrons) ---
+  const arrowSlots = coarse ? 5 : 7;
+  const perArrow = Math.floor(arrowPts / arrowSlots);
+  for (let a = 0; a < arrowSlots; a++) {
+    const ax = -1.8 + (a / (arrowSlots - 1)) * 3.6;
+    const az = -1.35 + (a % 2) * 0.25;
+    for (let i = 0; i < perArrow; i++) {
+      const u = i / perArrow;
+      // chevron: two diagonals meeting at tip
+      const side = i % 2 === 0 ? -1 : 1;
+      const tipY = 0.2 + u * 2.0;
+      const x = ax + side * (1 - u) * 0.28;
+      const y = tipY;
+      const z = az + (Math.random() - 0.5) * 0.05;
+      const c = GOLD.clone().lerp(MINT, Math.random() * 0.4);
+      pushParticle(x, y, z, c, 2, ax, u, 0.5 + Math.random() * 0.7);
+    }
+  }
+  while (idx < linePts + barPts + arrowPts) {
+    pushParticle((Math.random() - 0.5) * 3, Math.random() * 2, -1.2, GOLD, 2, 0, 0.5, 0.5);
+  }
+
+  // --- Ambient mist ----------
+  while (idx < COUNT) {
+    const x = (Math.random() - 0.5) * 6.5;
+    const y = (Math.random() - 0.5) * 3.5;
+    const z = (Math.random() - 0.5) * 4.5;
+    const c = GREEN.clone().lerp(GOLD, Math.random());
+    pushParticle(x, y, z, c, 3, Math.random() * Math.PI * 2, 0.3 + Math.random() * 1.2, 0.2 + Math.random() * 0.5);
   }
 
   const geo = new THREE.BufferGeometry();
@@ -193,64 +282,42 @@ import * as THREE from './vendor/three.module.min.js';
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
   const mat = new THREE.PointsMaterial({
-    size: coarse ? 0.035 : 0.028,
+    size: coarse ? 0.038 : 0.03,
     vertexColors: true,
     transparent: true,
-    opacity: 0.9,
+    opacity: 0.92,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     sizeAttenuation: true,
   });
   const points = new THREE.Points(geo, mat);
-  scene.add(points);
+  root.add(points);
 
-  // Neon torus rings (hologram gauge frame)
-  function makeRing(radius, tube, color, opacity) {
-    const g = new THREE.TorusGeometry(radius, tube, 12, 96);
-    const m = new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    const mesh = new THREE.Mesh(g, m);
-    mesh.rotation.x = Math.PI / 2.15;
-    return mesh;
-  }
-  const ringGroup = new THREE.Group();
-  ringGroup.add(makeRing(1.55, 0.018, 0xf4d96b, 0.55));
-  ringGroup.add(makeRing(1.78, 0.01, 0x1a6b3c, 0.45));
-  ringGroup.add(makeRing(1.32, 0.008, 0x8fd9a8, 0.35));
-  scene.add(ringGroup);
-
-  // Soft center glow sprite via a small point cloud disk
-  const glowCount = 400;
-  const gPos = new Float32Array(glowCount * 3);
-  const gCol = new Float32Array(glowCount * 3);
-  for (let i = 0; i < glowCount; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const r = Math.random() * 0.85;
-    gPos[i * 3] = Math.cos(a) * r;
-    gPos[i * 3 + 1] = (Math.random() - 0.5) * 0.15;
-    gPos[i * 3 + 2] = Math.sin(a) * r;
-    const c = GOLD.clone().lerp(MINT, Math.random());
+  // Soft grid floor (particle plane) for hologram stage feel
+  const gridN = coarse ? 180 : 320;
+  const gPos = new Float32Array(gridN * 3);
+  const gCol = new Float32Array(gridN * 3);
+  for (let i = 0; i < gridN; i++) {
+    const gx = (Math.random() - 0.5) * 5.5;
+    const gz = (Math.random() - 0.5) * 4.2;
+    gPos[i * 3] = gx;
+    gPos[i * 3 + 1] = -0.85;
+    gPos[i * 3 + 2] = gz;
+    const c = GOLD.clone().lerp(GREEN, Math.random());
     gCol[i * 3] = c.r; gCol[i * 3 + 1] = c.g; gCol[i * 3 + 2] = c.b;
   }
   const gGeo = new THREE.BufferGeometry();
   gGeo.setAttribute('position', new THREE.BufferAttribute(gPos, 3));
   gGeo.setAttribute('color', new THREE.BufferAttribute(gCol, 3));
-  const glow = new THREE.Points(gGeo, new THREE.PointsMaterial({
-    size: 0.06, vertexColors: true, transparent: true, opacity: 0.55,
+  const grid = new THREE.Points(gGeo, new THREE.PointsMaterial({
+    size: 0.025, vertexColors: true, transparent: true, opacity: 0.35,
     depthWrite: false, blending: THREE.AdditiveBlending,
   }));
-  scene.add(glow);
+  root.add(grid);
 
   /* Pointer / drag / gyro */
   const pointer = { x: 0, y: 0, tx: 0, ty: 0 };
   const drag = { active: false, lx: 0, ly: 0, yaw: 0, pitch: 0, tyaw: 0, tpitch: 0 };
-  const target = new THREE.Object3D();
-  scene.add(target);
 
   function onPointerMove(e) {
     const w = window.innerWidth || 1;
@@ -264,16 +331,15 @@ import * as THREE from './vendor/three.module.min.js';
       const dy = cy - drag.ly;
       drag.tyaw += dx * 0.005;
       drag.tpitch += dy * 0.003;
-      drag.tpitch = Math.max(-0.6, Math.min(0.6, drag.tpitch));
+      drag.tpitch = Math.max(-0.55, Math.min(0.55, drag.tpitch));
       drag.lx = cx; drag.ly = cy;
     }
   }
   function onPointerDown(e) {
     const cx = e.clientX != null ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
     const cy = e.clientY != null ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
-    // Only drag when interacting near the gauge (right half on desktop)
     const w = window.innerWidth || 1;
-    if (!coarse && cx < w * 0.35) return;
+    if (!coarse && cx < w * 0.32) return;
     drag.active = true;
     drag.lx = cx; drag.ly = cy;
     canvas.style.pointerEvents = 'auto';
@@ -283,14 +349,11 @@ import * as THREE from './vendor/three.module.min.js';
   window.addEventListener('pointermove', onPointerMove, { passive: true });
   window.addEventListener('pointerdown', onPointerDown, { passive: true });
   window.addEventListener('pointerup', onPointerUp, { passive: true });
-  // Allow dragging on the canvas specifically
   canvas.style.pointerEvents = 'auto';
   document.querySelector('.hero-stage').style.pointerEvents = 'auto';
-  // But keep UI clickable above
-  document.querySelectorAll('.topbar, .hero-copy, .scroll-cue, .section, .footer, .preview-ribbon')
+  document.querySelectorAll('.topbar, .hero-copy, .scroll-cue, .section, .footer, .preview-ribbon, .chart-hud')
     .forEach((el) => { el.style.pointerEvents = 'auto'; });
 
-  // Gyro on supporting devices
   let gyro = null;
   if (coarse && window.DeviceOrientationEvent) {
     const applyOri = (e) => {
@@ -316,63 +379,101 @@ import * as THREE from './vendor/three.module.min.js';
   let last = performance.now();
   let autoT = 0;
   const posAttr = geo.getAttribute('position');
+  // climb progress for animated rise (0→1)
+  let climb = 0;
 
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     autoT += dt;
+    climb = Math.min(1, climb + dt * 0.12);
 
     pointer.x += (pointer.tx - pointer.x) * 0.06;
     pointer.y += (pointer.ty - pointer.y) * 0.06;
     drag.yaw += (drag.tyaw - drag.yaw) * 0.08;
     drag.pitch += (drag.tpitch - drag.pitch) * 0.08;
 
-    // Spiral update
     const arr = posAttr.array;
     for (let i = 0; i < COUNT; i++) {
-      const a0 = seeds[i * 4];
-      const r0 = seeds[i * 4 + 1];
-      const y0 = seeds[i * 4 + 2];
+      const kind = seeds[i * 4];
+      const a = seeds[i * 4 + 1];
+      const b = seeds[i * 4 + 2];
       const spd = seeds[i * 4 + 3];
-      const a = a0 + autoT * spd * 0.55;
-      // Gentle vertical swirl
-      const y = y0 + Math.sin(a * 1.4 + autoT) * 0.08;
-      const pulse = 1 + Math.sin(autoT * 0.7 + r0) * 0.03;
-      const r = r0 * pulse;
-      arr[i * 3] = Math.cos(a) * r;
-      arr[i * 3 + 1] = y;
-      arr[i * 3 + 2] = Math.sin(a) * r;
+      const baseX = positions[i * 3];
+      // recompute from seeds for animated kinds
+      if (kind === 0) {
+        // line: a=t, b=lineIndex
+        const t = a;
+        const li = b | 0;
+        const kn = lineKinds[li] || 'eq';
+        const x = -2.2 + t * 4.4;
+        const reveal = Math.min(1, climb * 1.15 + t * 0.15);
+        const h = sampleLine(kn, t) * 2.6 * reveal - 0.6;
+        const pulse = Math.sin(autoT * spd + t * 6) * 0.025;
+        arr[i * 3] = x;
+        arr[i * 3 + 1] = h + pulse;
+        arr[i * 3 + 2] = -0.55 + li * 0.55 + Math.sin(autoT * 0.4 + t) * 0.02;
+      } else if (kind === 1) {
+        // bar column: a=bx, b=targetH — particles rise with climb
+        const bx = a;
+        const targetH = b;
+        const phase = (i % 97) / 97;
+        const rise = Math.min(1, climb * 1.1 + phase * 0.2);
+        const yMax = -0.7 + targetH * rise;
+        const u = ((autoT * spd * 0.15 + phase) % 1);
+        const y = -0.7 + u * (yMax + 0.7);
+        arr[i * 3] = bx + Math.sin(autoT * 0.6 + phase * 10) * 0.02;
+        arr[i * 3 + 1] = y;
+        arr[i * 3 + 2] = 1.15 + Math.cos(autoT * 0.5 + phase * 8) * 0.04;
+      } else if (kind === 2) {
+        // arrow spark rising
+        const ax = a;
+        const u0 = b;
+        const rise = Math.min(1, climb + 0.1);
+        const travel = (u0 + autoT * spd * 0.08) % 1;
+        const tipY = (-0.4 + travel * 2.6) * rise;
+        const side = (i % 2 === 0) ? -1 : 1;
+        arr[i * 3] = ax + side * (1 - travel) * 0.28;
+        arr[i * 3 + 1] = tipY;
+        arr[i * 3 + 2] = -1.35 + (i % 3) * 0.08;
+      } else {
+        // mist drift
+        const ang = a + autoT * spd * 0.25;
+        const r = b;
+        arr[i * 3] = Math.cos(ang) * r * 2.2;
+        arr[i * 3 + 1] = Math.sin(ang * 0.7 + autoT * 0.2) * 1.2;
+        arr[i * 3 + 2] = Math.sin(ang) * r * 1.6;
+      }
     }
     posAttr.needsUpdate = true;
 
-    ringGroup.rotation.z = autoT * 0.12 + drag.yaw;
-    ringGroup.rotation.x = Math.PI / 2.15 + drag.pitch * 0.4;
-    glow.rotation.y = -autoT * 0.2;
+    // gentle HUD climb synced to hologram rise
+    setBureauScores(climb * 0.55);
 
     const gx = gyro ? gyro.x : 0;
     const gy = gyro ? gyro.y : 0;
-    const parallaxX = (gyro ? gx : pointer.x) * 0.55 + drag.yaw * 0.3;
+    const parallaxX = (gyro ? gx : pointer.x) * 0.55 + drag.yaw * 0.35;
     const parallaxY = (gyro ? -gy : -pointer.y) * 0.35 + drag.pitch * 0.25;
-    // Auto idle sway when no input
-    const idleX = Math.sin(autoT * 0.25) * 0.15;
-    const idleY = Math.cos(autoT * 0.2) * 0.08;
+    const idleX = Math.sin(autoT * 0.22) * 0.12;
+    const idleY = Math.cos(autoT * 0.18) * 0.07;
 
-    camera.position.x = parallaxX + idleX;
-    camera.position.y = 0.15 + parallaxY + idleY;
-    camera.lookAt(0, 0, 0);
+    root.rotation.y = drag.yaw + parallaxX * 0.2;
+    root.rotation.x = drag.pitch * 0.35 + parallaxY * 0.12;
 
-    // Nudge group toward pointer for Hellon-like depth shift
-    points.rotation.y = parallaxX * 0.25;
-    points.rotation.x = parallaxY * 0.15;
+    camera.position.x = 0.35 + parallaxX * 0.45 + idleX;
+    camera.position.y = 0.55 + parallaxY * 0.35 + idleY;
+    camera.position.z = 7.2;
+    camera.lookAt(0.15, 0.35, 0);
+
+    grid.rotation.y = -autoT * 0.03;
 
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
 
-  // Pause when tab hidden
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) mat.opacity = 0.5;
-    else mat.opacity = 0.9;
+    if (document.hidden) mat.opacity = 0.45;
+    else mat.opacity = 0.92;
   });
 })();
